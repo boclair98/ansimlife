@@ -496,7 +496,7 @@ function syncPreparationActions() {
     const officialUrl = state.activeProgram.onlineUrl || channel.officialUrl || state.activeProgram.applyUrl;
     byId('stepBack').hidden = state.activeStep === 1;
     byId('stepNext').hidden = state.activeStep === 3;
-    byId('loginToSave').hidden = state.signedIn || submitted;
+    byId('loginToSave').hidden = state.signedIn || submitted || state.activeStep === 2;
     byId('saveDraft').hidden = !state.signedIn || submitted;
     byId('officialApply').hidden = state.activeStep !== 2 || submitted || !officialUrl;
     byId('officialApply').href = officialUrl || '#';
