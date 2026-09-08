@@ -753,6 +753,62 @@ fieldset legend,
     }
 }
 
+/* v29: align every content band across paired desktop benefit cards. */
+@media (min-width: 1101px) {
+    @supports (grid-template-rows: subgrid) {
+        .program-grid {
+            row-gap: 0;
+        }
+
+        .program-card {
+            display: grid;
+            grid-row: span 7;
+            grid-template-rows: subgrid;
+            min-height: 0;
+            margin-bottom: 14px;
+        }
+
+        .program-card > header {
+            grid-row: 1;
+        }
+
+        .program-title {
+            grid-row: 2;
+        }
+
+        .program-summary {
+            grid-row: 3;
+        }
+
+        .program-meta {
+            display: grid;
+            grid-row: 4 / span 2;
+            grid-template-rows: subgrid;
+            gap: 0;
+            margin: 0;
+        }
+
+        .program-meta > div:first-child {
+            grid-row: 1;
+            margin-top: 18px;
+        }
+
+        .program-meta > div:nth-child(2) {
+            grid-row: 2;
+            margin-top: 10px;
+        }
+
+        .card-progress {
+            grid-row: 6;
+        }
+
+        .program-card > footer {
+            grid-row: 7;
+            margin-top: 0;
+        }
+    }
+}
+
 @media (max-width: 420px) {
     .program-title {
         grid-template-columns: 42px minmax(0, 1fr);
