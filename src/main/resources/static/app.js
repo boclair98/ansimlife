@@ -175,7 +175,7 @@ function recommendationBadge(item) {
     if (!state.diagnosis) return '';
     const regionMatches = !state.diagnosis.region || item.region === '전국' || String(item.region).includes(state.diagnosis.region);
     const categoryMatches = normalizedCategory(item.category) === state.diagnosis.need;
-    if (regionMatches && categoryMatches) return '<span class="recommendation-chip">맞춤 후보</span>';
+    if (regionMatches && categoryMatches) return `<span class="recommendation-chip">${escapeHtml(state.diagnosis.age)} 맞춤</span>`;
     return '';
 }
 
@@ -183,7 +183,9 @@ function renderPrograms(items) {
     byId('count').textContent = `${formatNumber(state.totalResults)}개 혜택`;
     const grid = byId('programList');
     if (!items.length) {
-        grid.innerHTML = '<div class="empty-state"><span>⌕</span><h3>조건에 맞는 혜택이 아직 없어요</h3><p>지역을 전체로 바꾸거나 검색어를 짧게 입력해보세요.</p></div>';
+        const heading = state.diagnosis ? `${state.diagnosis.age} · ${state.diagnosis.household} 조건에 맞는 혜택이 없어요` : '조건에 맞는 혜택이 아직 없어요';
+        const copy = state.diagnosis ? '다른 분야나 가구 상황을 선택해 다시 확인해보세요. 맞지 않는 연령 전용 혜택은 표시하지 않습니다.' : '지역을 전체로 바꾸거나 검색어를 짧게 입력해보세요.';
+        grid.innerHTML = `<div class="empty-state"><span>⌕</span><h3>${escapeHtml(heading)}</h3><p>${escapeHtml(copy)}</p></div>`;
         return;
     }
     grid.innerHTML = items.map(item => {
@@ -216,6 +218,8 @@ async function loadPrograms(page = 0, append = false) {
         page: String(page),
         size: '24'
     });
+    if (state.diagnosis?.age) query.set('age', state.diagnosis.age);
+    if (state.diagnosis?.household) query.set('household', state.diagnosis.household);
     try {
         const response = await fetch(`/api/programs?${query}`);
         if (!response.ok) throw new Error(await errorMessage(response, '혜택을 불러오지 못했어요.'));
@@ -603,6 +607,19 @@ function renderDiagnosisSummary() {
     byId('diagnosisCopy').textContent = `${state.diagnosis.age}, ${state.diagnosis.household} 조건으로 후보를 좁혔습니다. 세부 소득·재산·가구 기준은 혜택 상세에서 꼭 확인해주세요.`;
 }
 
+function restoreDiagnosisFilters() {
+    if (!state.diagnosis) return;
+    byId('region').value = state.diagnosis.region || '';
+    byId('category').value = state.diagnosis.need || '';
+    syncCategorySelection(byId('category').value);
+}
+
+function clearDiagnosis() {
+    state.diagnosis = null;
+    try { localStorage.removeItem('ansimlife.diagnosis'); } catch { /* Keep manual search available without storage. */ }
+    byId('diagnosisSummary').hidden = true;
+}
+
 function applyDiagnosis(event) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -683,10 +700,10 @@ function bindDialogBackdrop(dialog) {
     dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
 }
 
-byId('searchForm').addEventListener('submit', event => { event.preventDefault(); state.diagnosis = null; byId('diagnosisSummary').hidden = true; loadPrograms(); });
+byId('searchForm').addEventListener('submit', event => { event.preventDefault(); clearDiagnosis(); loadPrograms(); });
 byId('loadMore').addEventListener('click', () => loadPrograms(state.currentPage + 1, true));
-byId('quickCategories').addEventListener('click', event => { const button = event.target.closest('[data-category]'); if (!button) return; byId('category').value = button.dataset.category; syncCategorySelection(button.dataset.category); loadPrograms(); });
-byId('categoryGrid').addEventListener('click', event => { const button = event.target.closest('[data-category]'); if (!button) return; byId('category').value = button.dataset.category; syncCategorySelection(button.dataset.category); loadPrograms().then(() => byId('programsHeading').scrollIntoView({ behavior:'smooth' })); });
+byId('quickCategories').addEventListener('click', event => { const button = event.target.closest('[data-category]'); if (!button) return; clearDiagnosis(); byId('category').value = button.dataset.category; syncCategorySelection(button.dataset.category); loadPrograms(); });
+byId('categoryGrid').addEventListener('click', event => { const button = event.target.closest('[data-category]'); if (!button) return; clearDiagnosis(); byId('category').value = button.dataset.category; syncCategorySelection(button.dataset.category); loadPrograms().then(() => byId('programsHeading').scrollIntoView({ behavior:'smooth' })); });
 byId('category').addEventListener('change', event => syncCategorySelection(event.target.value));
 byId('programList').addEventListener('click', handleProgramAction);
 byId('savedList').addEventListener('click', handleProgramAction);
@@ -745,6 +762,7 @@ byId('logoutButton').addEventListener('click', async () => { await fetch('/api/a
 
 populateDiagnosisNeeds();
 renderCategoryControls();
+restoreDiagnosisFilters();
 renderDiagnosisSummary();
 syncCounts();
 Promise.all([loadPrograms(), loadMeta(), loadSession().then(loadDrafts)]);

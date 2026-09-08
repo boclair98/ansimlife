@@ -291,8 +291,10 @@ GET /api/health
 ### 혜택 검색
 
 ```http
-GET /api/programs?region=서울&category=주거·자립&keyword=월세&page=0&size=24
+GET /api/programs?region=서울&category=주거·자립&keyword=월세&age=청년&household=1인%20가구&page=0&size=24
 ```
+
+`age`와 `household`은 맞춤진단에서 사용합니다. 선택 연령과 충돌하는 전용 혜택과 선택 가구 형태에 명백히 맞지 않는 전용 혜택은 서버에서 제외하며, 연령·가구 제한이 없거나 선택 조건을 포함하는 공통 혜택은 유지합니다.
 
 응답 예시:
 

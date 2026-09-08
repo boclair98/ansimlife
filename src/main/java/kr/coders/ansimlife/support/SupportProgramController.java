@@ -14,6 +14,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 import java.util.List;
 
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @RestController
@@ -24,15 +25,18 @@ public class SupportProgramController {
     private final PublicServiceSyncService syncService;
     private final PublicServiceDetailService detailService;
     private final ApplicationConnectorRegistry connectorRegistry;
+    private final SupportProgramAudienceMatcher audienceMatcher;
 
     public SupportProgramController(SupportProgramRepository repository,
                                     PublicServiceSyncService syncService,
                                     PublicServiceDetailService detailService,
-                                    ApplicationConnectorRegistry connectorRegistry) {
+                                    ApplicationConnectorRegistry connectorRegistry,
+                                    SupportProgramAudienceMatcher audienceMatcher) {
         this.repository = repository;
         this.syncService = syncService;
         this.detailService = detailService;
         this.connectorRegistry = connectorRegistry;
+        this.audienceMatcher = audienceMatcher;
     }
 
     @GetMapping
@@ -40,13 +44,37 @@ public class SupportProgramController {
             @RequestParam(defaultValue = "") String region,
             @RequestParam(defaultValue = "") String category,
             @RequestParam(defaultValue = "") String keyword,
+            @RequestParam(defaultValue = "") String age,
+            @RequestParam(defaultValue = "") String household,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "24") int size) {
         String normalizedRegion = region.trim();
         String normalizedCategory = category.trim();
         String normalizedKeyword = keyword.trim();
+        String normalizedAge = age.trim();
+        String normalizedHousehold = household.trim();
         int normalizedPage = Math.max(0, page);
         int normalizedSize = Math.max(12, Math.min(size, 60));
+
+        if (!audienceMatcher.supportsAgeGroup(normalizedAge)) {
+            throw new ResponseStatusException(BAD_REQUEST, "지원하지 않는 연령대입니다.");
+        }
+        if (!audienceMatcher.supportsHousehold(normalizedHousehold)) {
+            throw new ResponseStatusException(BAD_REQUEST, "지원하지 않는 가구 상황입니다.");
+        }
+
+        if (!normalizedAge.isEmpty() || !normalizedHousehold.isEmpty()) {
+            List<SupportProgram> matches = repository.searchCandidates(
+                            normalizedRegion, normalizedCategory, normalizedKeyword).stream()
+                    .filter(program -> audienceMatcher.matches(program, normalizedAge, normalizedHousehold))
+                    .toList();
+            long offset = (long) normalizedPage * normalizedSize;
+            int from = (int) Math.min(offset, matches.size());
+            int to = Math.min(from + normalizedSize, matches.size());
+            List<ProgramResponse> items = matches.subList(from, to).stream().map(this::toResponse).toList();
+            return new SearchResponse(items, normalizedPage, normalizedSize, matches.size(), to < matches.size());
+        }
+
         Page<SupportProgram> result = repository.search(normalizedRegion, normalizedCategory, normalizedKeyword,
                 PageRequest.of(normalizedPage, normalizedSize));
         return new SearchResponse(result.getContent().stream().map(this::toResponse).toList(), result.getNumber(), result.getSize(),
