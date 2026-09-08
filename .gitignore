@@ -1,0 +1,10 @@
+target/
+.idea/
+*.iml
+.coders/
+*.log
+.env
+.env.*
+!.env.example
+work/
+outputs/

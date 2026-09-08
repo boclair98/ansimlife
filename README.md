@@ -1,0 +1,649 @@
+# 안심생활
+
+> 전국의 정부·지자체·공공기관 혜택을 찾고, 신청 준비부터 공식 접수 이후 결과까지 관리하는 공공혜택 신청 내비게이터
+
+[안심생활 바로가기](https://ansimlife.coders.kr)
+
+안심생활은 공공혜택 목록을 보여주는 데서 끝나지 않습니다. 사용자가 자신의 상황에 맞는 혜택 후보를 좁히고, 공식 지원대상과 준비서류를 확인하고, 기본정보와 체크리스트를 저장한 뒤, 정확한 공식 접수처로 이동하고, 신청 이후 상태와 다음 확인일까지 관리할 수 있도록 돕습니다.
+
+이 프로젝트는 Java 21, Spring Boot, Spring Data JPA, PostgreSQL과 프레임워크 없는 HTML/CSS/JavaScript로 작성했습니다.
+
+## 가장 중요한 서비스 원칙
+
+안심생활은 기관과 연결되지 않은 신청을 실제 접수된 것처럼 표시하지 않습니다.
+
+- 공공데이터 API는 혜택 목록과 상세정보 조회에 사용합니다.
+- 기관 신청 API가 없는 혜택은 안심생활에서 준비한 뒤 공식 사이트 또는 방문·전화 등의 방식으로 최종 제출합니다.
+- 사용자가 `공식 사이트에서 신청함`이라고 기록한 상태는 사용자 메모로 저장합니다.
+- 연결된 기관 API가 실제 접수번호를 반환한 경우에만 `기관 접수 확인 완료`로 표시합니다.
+- 최종 지원 자격과 선정 결과는 담당기관이 확정합니다.
+
+이 구분은 화면 문구뿐 아니라 백엔드 데이터와 API에서도 분리되어 있습니다.
+
+| 구분 | 의미 | 기관이 확인한 접수인가? |
+| --- | --- | --- |
+| 신청 준비 | 조건·서류·기본정보를 안심생활에 저장 | 아니요 |
+| 사용자 진행기록 | 사용자가 공식 사이트 방문, 신청, 보완, 결과를 직접 기록 | 아니요 |
+| 기관 접수 확인 | 승인된 기관 커넥터가 접수번호를 반환 | 예 |
+
+## 주요 기능
+
+### 1. 전체 공공혜택 탐색
+
+- 중앙부처·지자체·공공기관의 약 1.1만 개 혜택 동기화
+- 키워드, 지역, 분야 조합 검색
+- 10개 생활 분야 탐색
+- 페이지 단위 추가 로딩
+- 동기화 중에도 PostgreSQL에 마지막으로 저장된 정보 제공
+
+### 2. 민감정보 없는 맞춤진단
+
+- 거주 지역
+- 연령대
+- 가장 필요한 도움 분야
+- 현재 가구 상황
+
+진단 결과는 자격 확정이 아니라 먼저 확인할 혜택 후보를 좁히는 용도입니다. 주민등록번호와 정확한 소득·재산정보를 요구하지 않습니다.
+
+### 3. 공식 상세정보 화면
+
+혜택 카드를 누르면 공공데이터 상세 API를 호출해 다음 정보를 보여줍니다.
+
+- 사업 목적과 주요 내용
+- 지원 대상
+- 지원 내용
+- 선정 기준
+- 신청 기간과 신청 방법
+- 소관기관, 접수기관, 담당부서, 문의처
+- 사용자가 제출할 서류
+- 담당공무원이 확인하는 서류
+- 본인 동의로 확인하는 서류
+- 공식 신청 URL
+- 법적 근거와 원본 수정일
+
+상세 응답은 메모리에 6시간 캐시하며, 외부 API가 실패하면 데이터베이스에 저장된 정보로 안전하게 대체합니다.
+
+### 4. 혜택별 신청 준비실
+
+각 혜택마다 독립적인 4단계 준비 화면을 제공합니다.
+
+1. `조건·서류`: 지원대상, 선정기준, 공식 준비서류와 체크리스트 확인
+2. `기본정보`: 이름, 연락처, 출생연도, 거주지역, 가구형태, 소득구간, 메모 저장
+3. `공식신청`: 준비도 확인, 신청 방식 안내, 전화 문의 문장 복사, 공식 접수처 이동
+4. `결과관리`: 내가 기록한 진행상태, 접수번호 메모, 다음 확인일 저장
+
+주민등록번호, 계좌정보, 의료 증빙 원본은 신청 준비실에서 받지 않습니다.
+
+### 5. 신청 여정 관리
+
+사용자는 공식 신청 이후 다음 상태를 기록할 수 있습니다.
+
+| 상태 코드 | 화면 표시 | 설명 |
+| --- | --- | --- |
+| `PREPARING` | 신청 준비 중 | 조건·서류·기본정보 준비 단계 |
+| `OFFICIAL_SITE_OPENED` | 공식 신청처 확인 | 공식 접수 화면을 열어본 상태 |
+| `USER_REPORTED_SUBMITTED` | 내가 신청했다고 기록 | 사용자가 외부 접수를 완료했다고 기록 |
+| `SUPPLEMENT_REQUESTED` | 보완 요청 받음 | 담당기관에서 추가 자료를 요청한 상태 |
+| `RESULT_WAITING` | 결과 기다리는 중 | 접수 후 심사 또는 결과 대기 |
+| `APPROVED` | 선정됐다고 기록 | 사용자가 선정 결과를 기록 |
+| `REJECTED` | 미선정으로 기록 | 사용자가 미선정 결과를 기록 |
+| `INSTITUTION_CONFIRMED` | 기관 접수 확인 완료 | 기관 커넥터가 유효한 접수번호를 반환 |
+
+`INSTITUTION_CONFIRMED`는 사용자가 임의로 선택할 수 없습니다.
+
+### 6. 로그인과 개인화
+
+- 별도 이메일 회원가입·로그인
+- BCrypt 비밀번호 해시
+- JDBC 기반 서버 세션
+- 관심 혜택 브라우저 저장
+- 사용자별 신청 준비정보와 진행상태 저장
+- 모바일·데스크톱 반응형 UI
+
+## 사용자 흐름
+
+```mermaid
+flowchart LR
+    A[5분 맞춤진단] --> B[혜택 후보]
+    B --> C[공식 상세 확인]
+    C --> D[조건·서류 체크]
+    D --> E[기본정보 저장]
+    E --> F{기관 커넥터가 있는가?}
+    F -- 아니요 --> G[공식 접수처 이동]
+    G --> H[사용자 진행상태 기록]
+    F -- 예 --> I[기관 API 제출]
+    I --> J{접수번호 반환?}
+    J -- 예 --> K[기관 접수 확인 완료]
+    J -- 아니요 --> L[신청 완료 처리 안 함]
+```
+
+## 기술 구성
+
+| 영역 | 기술 |
+| --- | --- |
+| 언어 | Java 21 |
+| 애플리케이션 | Spring Boot 3.4.2 |
+| 웹 API | Spring MVC |
+| ORM | Spring Data JPA / Hibernate |
+| 로그인 | 자체 이메일 계정, BCrypt, Spring Session JDBC |
+| 운영 DB | PostgreSQL |
+| 로컬 DB | H2 in-memory, PostgreSQL 호환 모드 |
+| 프런트엔드 | Semantic HTML, CSS, Vanilla JavaScript |
+| 외부 데이터 | 공공데이터포털 대한민국 공공서비스(혜택) Open API |
+| 배포 | Docker, Coders |
+
+## 프로젝트 구조
+
+```text
+.
+├─ src/main/java/kr/coders/ansimlife
+│  ├─ account
+│  │  ├─ AuthController.java
+│  │  ├─ PasswordConfig.java
+│  │  ├─ UserAccount.java
+│  │  └─ UserAccountRepository.java
+│  ├─ application
+│  │  ├─ ApplicationDraft.java
+│  │  ├─ ApplicationDraftController.java
+│  │  ├─ ApplicationSubmissionService.java
+│  │  ├─ BenefitApplicationConnector.java
+│  │  ├─ ApplicationConnectorRegistry.java
+│  │  └─ ApplicationChannel.java
+│  ├─ support
+│  │  ├─ SupportProgram.java
+│  │  ├─ SupportProgramController.java
+│  │  ├─ PublicServiceSyncService.java
+│  │  └─ PublicServiceDetailService.java
+│  └─ system
+│     └─ HealthController.java
+├─ src/main/resources
+│  ├─ static
+│  │  ├─ index.html
+│  │  ├─ app.css
+│  │  └─ app.js
+│  └─ application.properties
+├─ src/test/java
+├─ coders.yaml
+├─ Dockerfile
+└─ pom.xml
+```
+
+## 로컬 실행
+
+### 준비물
+
+- JDK 21
+- Maven 3.9 이상
+- 선택사항: PostgreSQL 15 이상
+
+### 1. 저장소 받기
+
+```bash
+git clone https://github.com/boclair98/ansimlife.git
+cd ansimlife
+```
+
+### 2. 환경변수 설정
+
+공공데이터 없이도 대표 샘플 데이터로 실행할 수 있습니다. 전체 혜택을 동기화하려면 `DATA_GO_KR_SERVICE_KEY`를 설정합니다.
+
+PowerShell:
+
+```powershell
+$env:DATA_GO_KR_SERVICE_KEY="발급받은-일반인증키"
+mvn spring-boot:run
+```
+
+macOS/Linux:
+
+```bash
+export DATA_GO_KR_SERVICE_KEY="발급받은-일반인증키"
+mvn spring-boot:run
+```
+
+브라우저에서 `http://localhost:8080`을 엽니다.
+
+### 3. 기본 H2 실행 방식
+
+별도 데이터베이스 환경변수를 설정하지 않으면 아래 H2 인메모리 데이터베이스를 사용합니다.
+
+```properties
+spring.datasource.url=jdbc:h2:mem:ansimlife;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+spring.jpa.hibernate.ddl-auto=create-drop
+```
+
+애플리케이션을 종료하면 H2 데이터는 사라집니다.
+
+## PostgreSQL 실행
+
+다음 환경변수를 설정하면 PostgreSQL을 사용할 수 있습니다.
+
+```bash
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/ansimlife
+SPRING_DATASOURCE_USERNAME=ansimlife
+SPRING_DATASOURCE_PASSWORD=change-me
+SPRING_JPA_HIBERNATE_DDL_AUTO=update
+SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
+SESSION_COOKIE_SECURE=false
+DATA_GO_KR_SERVICE_KEY=your-service-key
+```
+
+운영 환경에서는 `SESSION_COOKIE_SECURE=true`를 사용하고 HTTPS 뒤에서 실행해야 합니다.
+
+## 공공데이터 API 키 발급
+
+사용 데이터셋: [행정안전부 대한민국 공공서비스(혜택) 정보](https://www.data.go.kr/data/15113968/openapi.do)
+
+1. 공공데이터포털에 로그인합니다.
+2. 데이터셋 페이지에서 활용신청을 누릅니다.
+3. 개발계정 승인을 확인합니다.
+4. 마이페이지에서 일반 인증키를 확인합니다.
+5. 인증키를 `DATA_GO_KR_SERVICE_KEY` 환경변수로 설정합니다.
+
+주의사항:
+
+- 인증키를 `application.properties`, JavaScript, Git 커밋에 직접 넣지 마세요.
+- URL 인코딩된 키와 디코딩된 키를 중복 인코딩하지 않도록 주의하세요.
+- 이 키는 혜택 목록·상세정보 조회 권한입니다.
+- 정부혜택 신청 접수 권한이나 사용자 행정정보 조회 권한은 포함하지 않습니다.
+
+현재 사용하는 외부 엔드포인트:
+
+```text
+GET https://api.odcloud.kr/api/gov24/v3/serviceList
+GET https://api.odcloud.kr/api/gov24/v3/serviceDetail
+```
+
+## 환경변수
+
+| 이름 | 필수 | 기본값 | 설명 |
+| --- | --- | --- | --- |
+| `DATA_GO_KR_SERVICE_KEY` | 운영 권장 | 빈 값 | 공공서비스 목록·상세 조회 인증키 |
+| `SPRING_DATASOURCE_URL` | 아니요 | H2 메모리 URL | JDBC 데이터베이스 URL |
+| `SPRING_DATASOURCE_USERNAME` | 아니요 | `sa` | 데이터베이스 사용자 |
+| `SPRING_DATASOURCE_PASSWORD` | 아니요 | 빈 값 | 데이터베이스 비밀번호 |
+| `SPRING_JPA_HIBERNATE_DDL_AUTO` | 아니요 | `create-drop` | 로컬 스키마 정책. 운영은 `update` 사용 중 |
+| `SPRING_JPA_DATABASE_PLATFORM` | 아니요 | H2 Dialect | 운영은 PostgreSQL Dialect |
+| `SESSION_COOKIE_SECURE` | 아니요 | `false` | HTTPS 운영 환경에서는 `true` |
+
+## 데이터 동기화
+
+`DATA_GO_KR_SERVICE_KEY`가 있으면 애플리케이션 시작 직후 전체 목록 동기화를 백그라운드에서 시작하고 매일 오전 4시 20분에 다시 실행합니다.
+
+동기화 설계:
+
+- 공공 API를 페이지 단위로 조회
+- `externalId`를 기준으로 기존 데이터 갱신
+- JPA 배치 저장
+- 동기화 상태를 `READY`, `SYNCING`, `PARTIAL`, `WAITING`, `DISABLED`, `ERROR`로 공개
+- 외부 API 장애 시 마지막 저장 데이터 유지
+- 상세정보는 서비스 ID 단건 조회 후 6시간 캐시
+
+## REST API
+
+### 상태 확인
+
+```http
+GET /api/health
+```
+
+### 혜택 검색
+
+```http
+GET /api/programs?region=서울&category=주거·자립&keyword=월세&page=0&size=24
+```
+
+응답 예시:
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "externalId": "SERVICE_ID",
+      "title": "청년 주거 지원",
+      "region": "서울",
+      "category": "주거·자립",
+      "target": "지원 대상 요약",
+      "summary": "사업 설명",
+      "benefit": "지원 내용",
+      "deadline": "상시 신청",
+      "application": {
+        "mode": "OFFICIAL_SITE",
+        "label": "공식 접수처 확인 필요",
+        "description": "신청서는 여기서 준비하고 공식 화면에서 제출합니다.",
+        "directAvailable": false,
+        "officialUrl": "https://..."
+      }
+    }
+  ],
+  "page": 0,
+  "size": 24,
+  "total": 100,
+  "hasMore": true
+}
+```
+
+### 혜택 메타데이터
+
+```http
+GET /api/programs/meta
+```
+
+저장 건수, 원본 전체 건수, 동기화 상태, 마지막 동기화 시각, 분야별 건수를 반환합니다.
+
+### 혜택 단건·상세
+
+```http
+GET /api/programs/{id}
+GET /api/programs/{id}/detail
+```
+
+상세 API는 서비스 ID로 공식 목록·상세 API를 조회하고 저장 데이터와 병합합니다.
+
+### 계정
+
+```http
+GET  /api/auth/me
+POST /api/auth/register
+POST /api/auth/login
+POST /api/auth/logout
+```
+
+회원가입 요청:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "at-least-8-characters",
+  "displayName": "안심이"
+}
+```
+
+로그인 요청:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "password"
+}
+```
+
+### 신청 준비정보
+
+```http
+GET    /api/applications/drafts
+POST   /api/applications/drafts
+DELETE /api/applications/drafts/{id}
+```
+
+저장 요청:
+
+```json
+{
+  "programId": 1,
+  "applicantName": "홍길동",
+  "phone": "010-1234-5678",
+  "birthYear": "1995",
+  "district": "서울시 마포구",
+  "householdType": "1인 가구",
+  "incomeRange": "100만~200만원",
+  "memo": "담당기관에 소득기준 문의",
+  "eligibilityConfirmed": true,
+  "documentsReady": true,
+  "termsAccepted": true
+}
+```
+
+### 사용자 진행상태
+
+```http
+POST /api/applications/drafts/{id}/journey
+```
+
+요청 예시:
+
+```json
+{
+  "status": "RESULT_WAITING",
+  "receiptMemo": "정부24 접수번호 2026-1234",
+  "nextActionDate": "2026-09-15"
+}
+```
+
+서버는 허용된 상태값만 받고, 다른 사용자의 신청 준비정보에는 접근할 수 없습니다. 기관 접수가 확인된 신청은 사용자 진행상태로 덮어쓸 수 없습니다.
+
+### 연결된 기관에 실제 제출
+
+```http
+POST /api/applications/drafts/{id}/submit
+```
+
+이 API는 다음 조건을 모두 충족할 때만 `SUBMITTED`를 반환합니다.
+
+1. 선택한 혜택을 지원하는 `BenefitApplicationConnector`가 존재
+2. 필수 준비정보가 100% 완료
+3. 연결된 기관 API 호출 성공
+4. 기관이 비어 있지 않은 접수번호 반환
+
+커넥터가 없으면 HTTP `409 Conflict`, 기관이 접수번호를 반환하지 않으면 `502 Bad Gateway`로 종료합니다. 내부 DB에 저장됐다는 이유만으로 신청 완료를 만들지 않습니다.
+
+## 신청 채널 모델
+
+혜택 응답의 `application.mode`는 다음 중 하나입니다.
+
+| 모드 | 의미 | 화면 동작 |
+| --- | --- | --- |
+| `DIRECT` | 승인된 기관 커넥터 사용 가능 | 안심생활에서 기관 API 제출 |
+| `OFFICIAL_SITE` | 공식 온라인 신청 URL 존재 | 준비 후 공식 접수처로 이동 |
+| `PREPARATION_ONLY` | 온라인 URL 또는 기관 API 없음 | 준비정보와 문의 내용을 저장 |
+| `NO_APPLICATION` | 별도 신청 절차가 없는 혜택 | 제공 조건과 이용방법 확인 |
+
+## 새로운 기관 커넥터 추가
+
+기관과 정식 연동계약 및 API 자격증명을 받은 경우에만 `BenefitApplicationConnector`를 구현합니다.
+
+```java
+@Component
+public class ExampleAgencyConnector implements BenefitApplicationConnector {
+
+    @Override
+    public String providerCode() {
+        return "example-agency";
+    }
+
+    @Override
+    public boolean supports(SupportProgram program) {
+        return "AGENCY_SERVICE_ID".equals(program.getExternalId());
+    }
+
+    @Override
+    public ExternalApplicationReceipt submit(ExternalApplicationRequest request) {
+        // 1. 기관 API 규격으로 요청 변환
+        // 2. 기관 API 호출
+        // 3. 기관이 발급한 접수번호 검증
+        return new ExternalApplicationReceipt(
+                "기관이-발급한-접수번호",
+                "기관-신청-ID",
+                "접수기관명",
+                LocalDateTime.now());
+    }
+}
+```
+
+`ApplicationConnectorRegistry`가 Spring Bean으로 등록된 커넥터를 자동 수집합니다. 운영 커넥터에는 일반적으로 다음이 필요합니다.
+
+- 기관의 서면 연동 승인
+- 개발·운영 API 명세
+- 샌드박스와 운영 자격증명
+- 전자서명 또는 인증서 정책
+- 개인정보 처리위탁·제3자 제공 검토
+- 실패 재시도와 중복접수 방지 키
+- 접수상태 콜백 또는 조회 API
+- 장애·철회·삭제 대응 절차
+
+## 데이터 모델 핵심
+
+### `SupportProgram`
+
+검색에 필요한 공공혜택 요약을 저장합니다. 공공데이터의 서비스 ID는 `externalId`로 유일하게 관리합니다.
+
+### `UserAccount`
+
+이메일, BCrypt 비밀번호 해시, 표시 이름을 저장합니다. 평문 비밀번호는 저장하지 않습니다.
+
+### `ApplicationDraft`
+
+사용자의 신청 준비정보, 준비도, 사용자 진행상태와 기관 접수 결과를 저장합니다.
+
+중요 필드:
+
+- `status`: `DRAFT`, `READY_TO_SUBMIT`, `SUBMITTED`
+- `completionPercent`: 필수 준비항목 완료율
+- `journeyStatus`: 사용자가 관리하는 신청 여정 상태
+- `userReceiptMemo`: 사용자가 입력한 접수번호 또는 메모
+- `nextActionDate`: 다음 확인 예정일
+- `externalReceiptNumber`: 기관 커넥터가 반환한 실제 접수번호
+- `externalAgency`: 실제 접수기관
+
+`userReceiptMemo`와 `externalReceiptNumber`는 의도적으로 별도 필드입니다.
+
+## 보안과 개인정보
+
+현재 구현된 보호 조치:
+
+- BCrypt 비밀번호 해시
+- HttpOnly 세션 쿠키
+- 운영 환경 Secure 쿠키
+- SameSite=Lax
+- 사용자별 신청 데이터 소유권 검사
+- 입력 문자열 길이 제한
+- 허용된 진행상태만 저장
+- 브라우저 출력 시 HTML 이스케이프
+- 외부 링크에 `noopener noreferrer`
+- 주민등록번호·계좌·증빙 원본 입력 UI 미제공
+
+운영 서비스로 확장하기 전에 추가로 필요한 작업:
+
+- 이메일 인증과 비밀번호 재설정
+- CSRF 보호 전략
+- 로그인·회원가입 rate limit
+- 개인정보 처리방침과 이용약관
+- 회원탈퇴 및 개인정보 삭제
+- 관리자 접근통제와 감사 로그
+- 애플리케이션 암호화 키 관리
+- Flyway 또는 Liquibase 스키마 마이그레이션
+- 데이터 보존기간과 자동 파기
+- 보안 헤더(CSP, HSTS 등)
+- 의존성·컨테이너 취약점 검사
+
+이 저장소는 학습·개인 프로젝트 단계이며, 민감한 실제 신청 데이터를 다루기 전 법률·보안 검토가 필요합니다.
+
+## 테스트
+
+```bash
+mvn test
+```
+
+현재 단위 테스트는 다음 불변조건을 확인합니다.
+
+- 필수 준비항목 완료 시 `READY_TO_SUBMIT`
+- 사용자의 신청완료 기록이 기관 접수로 바뀌지 않음
+- 기관 접수번호가 있으면 `INSTITUTION_CONFIRMED`
+- 허용되지 않은 진행상태 거부
+
+운영 전 권장 테스트:
+
+- 컨트롤러 인증·소유권 통합 테스트
+- 공공데이터 API 실패·지연·필드 변경 테스트
+- 기관 커넥터 계약 테스트
+- 중복 접수와 재시도 테스트
+- 모바일 360px, 390px, 768px와 데스크톱 1440px 시각 회귀 테스트
+- 키보드 탐색과 스크린리더 접근성 테스트
+
+## Docker 빌드
+
+```bash
+docker build -t ansimlife .
+docker run --rm -p 8080:8080 \
+  -e DATA_GO_KR_SERVICE_KEY="your-service-key" \
+  ansimlife
+```
+
+`Dockerfile`은 Maven 빌드 단계와 JRE 실행 단계를 분리한 멀티스테이지 빌드를 사용합니다.
+
+## Coders 배포
+
+`coders.yaml`에는 웹 서비스와 PostgreSQL 컴포넌트가 정의되어 있습니다.
+
+```yaml
+services:
+  web:
+    dockerfile: Dockerfile
+    context: .
+    port: 8080
+    expose: public
+  db:
+    type: postgres
+    size: 1Gi
+```
+
+배포 환경에는 최소한 다음 비밀값을 설정해야 합니다.
+
+```text
+DATA_GO_KR_SERVICE_KEY
+```
+
+PostgreSQL 연결정보는 `coders.yaml`의 컴포넌트 참조를 통해 웹 서비스에 전달됩니다. `.coders/` 디렉터리와 로컬 토큰은 `.gitignore`로 제외되어 있습니다.
+
+## 문제 해결
+
+### 전체 혜택이 보이지 않을 때
+
+1. `DATA_GO_KR_SERVICE_KEY`가 설정됐는지 확인합니다.
+2. `/api/programs/meta`의 `syncStatus`를 확인합니다.
+3. 공공데이터포털 활용신청 상태와 일일 호출량을 확인합니다.
+4. 인코딩 키를 다시 인코딩하지 않았는지 확인합니다.
+
+### 상세정보가 저장 데이터로 표시될 때
+
+상세 API 호출이 실패하거나 제한시간을 넘기면 마지막 저장정보를 보여줍니다. 잠시 뒤 다시 열고 서버 로그에서 외부 API 응답 상태를 확인합니다.
+
+### 로그인은 되지만 신청 준비정보가 사라질 때
+
+- 운영 DB가 H2가 아니라 PostgreSQL인지 확인합니다.
+- Spring Session 테이블 초기화 권한을 확인합니다.
+- HTTPS 환경에서 `SESSION_COOKIE_SECURE=true`인지 확인합니다.
+- 여러 도메인을 사용할 경우 쿠키 도메인과 SameSite 정책을 확인합니다.
+
+### `기관에 신청하기` 버튼이 보이지 않을 때
+
+정상 동작입니다. 해당 혜택을 지원하는 기관 커넥터가 없으면 공식 접수처 버튼만 표시합니다. UI에서 버튼을 강제로 표시해도 실제 접수 권한이 생기지 않습니다.
+
+## 현실적인 확장 순서
+
+1. 맞춤진단과 검색 정확도 개선
+2. 공식 정보 변경 알림
+3. 이메일 인증, 탈퇴, 데이터 삭제
+4. 마감·다음 확인일 알림
+5. 지역·대상별 신청 가이드 품질 개선
+6. 낮은 민감도의 민간·비영리 지원사업 파일럿
+7. 승인된 기관 커넥터의 샌드박스 연동
+8. 기관 접수번호·상태 콜백 연동
+
+카카오 알림톡, 문자, OCR, 지도 API는 핵심 탐색·준비 기능에 필수는 아닙니다. 개인정보와 운영비용을 고려해 실제 필요가 생긴 뒤 추가하는 편이 안전합니다.
+
+## 기여 방법
+
+1. 이슈에서 개선 내용과 재현 방법을 설명합니다.
+2. 별도 브랜치에서 수정합니다.
+3. `mvn test`를 실행합니다.
+4. 모바일과 데스크톱 화면을 확인합니다.
+5. 기관 접수 여부를 과장하는 문구가 없는지 점검합니다.
+6. Pull Request에 변경 내용과 테스트 결과를 작성합니다.
+
+공공데이터 필드 매핑, 접근성, 지역별 신청 가이드와 테스트 추가를 환영합니다. 실제 기관 커넥터 코드는 반드시 해당 기관의 연동 권한을 확보한 상태에서 제안해주세요.
+
+## 고지
+
+안심생활이 제공하는 정보는 공공기관의 원본 안내를 이해하기 쉽게 정리한 참고자료입니다. 정보 갱신 시차가 있을 수 있으며, 실제 신청 가능 여부, 제출서류, 접수 완료와 선정 결과는 해당 기관의 공식 안내와 판단을 따릅니다.
