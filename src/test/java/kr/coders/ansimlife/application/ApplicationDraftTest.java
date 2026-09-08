@@ -11,17 +11,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ApplicationDraftTest {
 
     @Test
-    void completePreparationProducesReadyState() {
+    void completeChecklistProducesReadyStateWithoutPersonalData() {
         ApplicationDraft draft = new ApplicationDraft("7", 11L);
 
-        draft.update(
-                "홍길동", "010-1234-5678", "1995", "서울시 마포구",
-                "1인 가구", "100만~200만원", "",
-                true, true, true);
+        draft.update(true, true);
 
         assertThat(draft.getStatus()).isEqualTo("READY_TO_SUBMIT");
         assertThat(draft.getCompletionPercent()).isEqualTo(100);
         assertThat(draft.getJourneyStatus()).isEqualTo("PREPARING");
+        assertThat(draft.getApplicantName()).isNull();
+        assertThat(draft.getPhone()).isNull();
     }
 
     @Test

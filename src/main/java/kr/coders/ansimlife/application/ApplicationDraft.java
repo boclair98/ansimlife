@@ -106,44 +106,37 @@ public class ApplicationDraft {
         this.journeyStatus = "PREPARING";
     }
 
-    public void update(String applicantName, String phone, String birthYear, String district,
-                       String householdType, String incomeRange, String memo,
-                       boolean eligibilityConfirmed, boolean documentsReady, boolean termsAccepted) {
+    public void update(boolean eligibilityConfirmed, boolean documentsReady) {
         if (isExternallySubmitted()) {
             throw new IllegalStateException("이미 접수한 신청은 수정할 수 없습니다.");
         }
-        this.applicantName = applicantName;
-        this.phone = phone;
-        this.birthYear = birthYear;
-        this.district = district;
-        this.householdType = householdType;
-        this.incomeRange = incomeRange;
-        this.memo = memo;
+        // Legacy columns are kept temporarily for schema compatibility, but the
+        // navigator no longer collects or retains application personal data.
+        this.applicantName = null;
+        this.phone = null;
+        this.birthYear = null;
+        this.district = null;
+        this.householdType = null;
+        this.incomeRange = null;
+        this.memo = null;
         this.eligibilityConfirmed = eligibilityConfirmed;
         this.documentsReady = documentsReady;
-        this.termsAccepted = termsAccepted;
+        this.termsAccepted = false;
         refreshProgress();
     }
 
     private void refreshProgress() {
         int completed = 0;
-        completed += hasText(applicantName) ? 1 : 0;
-        completed += hasText(phone) ? 1 : 0;
-        completed += hasText(birthYear) ? 1 : 0;
-        completed += hasText(district) ? 1 : 0;
-        completed += hasText(householdType) ? 1 : 0;
-        completed += hasText(incomeRange) ? 1 : 0;
         completed += eligibilityConfirmed ? 1 : 0;
         completed += documentsReady ? 1 : 0;
-        completed += termsAccepted ? 1 : 0;
-        this.completionPercent = (int) Math.round(completed * 100.0 / 9.0);
-        this.status = isExternallySubmitted() ? "SUBMITTED" : completed == 9 ? "READY_TO_SUBMIT" : "DRAFT";
+        this.completionPercent = completed * 50;
+        this.status = isExternallySubmitted() ? "SUBMITTED" : completed == 2 ? "READY_TO_SUBMIT" : "DRAFT";
     }
 
     public void requireReadyForExternalSubmission() {
         refreshProgress();
         if (!"READY_TO_SUBMIT".equals(status)) {
-            throw new IllegalStateException("필수 신청 정보를 모두 입력해주세요.");
+            throw new IllegalStateException("지원조건과 준비서류를 모두 확인해주세요.");
         }
     }
 
@@ -188,10 +181,6 @@ public class ApplicationDraft {
 
     public boolean isExternallySubmitted() {
         return externalReceiptNumber != null && !externalReceiptNumber.isBlank();
-    }
-
-    private boolean hasText(String value) {
-        return value != null && !value.isBlank();
     }
 
     @PrePersist

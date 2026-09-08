@@ -20,16 +20,6 @@ public class ApplicationConnectorRegistry {
     }
 
     public ApplicationChannel describe(SupportProgram program) {
-        Optional<BenefitApplicationConnector> connector = connectorFor(program);
-        if (connector.isPresent()) {
-            return new ApplicationChannel(
-                    "DIRECT",
-                    "안심생활에서 바로 신청",
-                    "제출 후 접수기관이 발급한 접수번호를 확인할 수 있어요.",
-                    true,
-                    program.getApplyUrl());
-        }
-
         String deadline = safe(program.getDeadline());
         if (deadline.contains("별도의 신청절차가 없음") || deadline.contains("신청절차 없음")) {
             return new ApplicationChannel(
@@ -51,8 +41,8 @@ public class ApplicationConnectorRegistry {
 
         return new ApplicationChannel(
                 "PREPARATION_ONLY",
-                "신청서 준비 가능",
-                "기관 접수 API가 연결되면 이 화면에서 바로 제출할 수 있어요.",
+                "전화·방문 접수 확인",
+                "온라인 신청 주소가 없어 담당기관에 접수 방법을 확인해야 해요.",
                 false,
                 null);
     }

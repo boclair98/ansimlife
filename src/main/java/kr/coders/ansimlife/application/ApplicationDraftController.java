@@ -26,16 +26,13 @@ public class ApplicationDraftController {
 
     private final ApplicationDraftRepository draftRepository;
     private final SupportProgramRepository programRepository;
-    private final ApplicationSubmissionService submissionService;
     private final ApplicationConnectorRegistry connectorRegistry;
 
     public ApplicationDraftController(ApplicationDraftRepository draftRepository,
                                       SupportProgramRepository programRepository,
-                                      ApplicationSubmissionService submissionService,
                                       ApplicationConnectorRegistry connectorRegistry) {
         this.draftRepository = draftRepository;
         this.programRepository = programRepository;
-        this.submissionService = submissionService;
         this.connectorRegistry = connectorRegistry;
     }
 
@@ -64,17 +61,7 @@ public class ApplicationDraftController {
         ApplicationDraft draft = draftRepository.findByCodersUserAndProgramId(ownerKey, request.programId())
                 .orElseGet(() -> new ApplicationDraft(ownerKey, request.programId()));
         try {
-            draft.update(
-                    limit(request.applicantName(), 60),
-                    limit(request.phone(), 30),
-                    normalizeBirthYear(request.birthYear()),
-                    limit(request.district(), 80),
-                    limit(request.householdType(), 40),
-                    limit(request.incomeRange(), 40),
-                    limit(request.memo(), 500),
-                    request.eligibilityConfirmed(),
-                    request.documentsReady(),
-                    request.termsAccepted());
+            draft.update(request.eligibilityConfirmed(), request.documentsReady());
         } catch (IllegalStateException error) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, error.getMessage());
         }
@@ -90,18 +77,6 @@ public class ApplicationDraftController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
         draftRepository.delete(draft);
-    }
-
-    @PostMapping("/drafts/{id}/submit")
-    public DraftResponse submit(@PathVariable Long id, HttpSession session) {
-        try {
-            ApplicationDraft draft = submissionService.submit(
-                    id,
-                    AuthController.requireSessionUserId(session).toString());
-            return toResponse(draft);
-        } catch (IllegalStateException error) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, error.getMessage());
-        }
     }
 
     @PostMapping("/drafts/{id}/journey")
@@ -137,9 +112,7 @@ public class ApplicationDraftController {
                 program == null ? "삭제된 지원" : program.getTitle(),
                 program == null ? null : program.getApplyUrl(),
                 program == null ? null : connectorRegistry.describe(program),
-                draft.getApplicantName(), draft.getPhone(), draft.getBirthYear(), draft.getDistrict(),
-                draft.getHouseholdType(), draft.getIncomeRange(), draft.getMemo(),
-                draft.isEligibilityConfirmed(), draft.isDocumentsReady(), draft.isTermsAccepted(),
+                draft.isEligibilityConfirmed(), draft.isDocumentsReady(),
                 draft.getStatus(), draft.getCompletionPercent(), draft.getUpdatedAt(), draft.getSubmittedAt(),
                 draft.getSubmissionProvider(), draft.getExternalReceiptNumber(),
                 draft.getExternalApplicationId(), draft.getExternalAgency(),
@@ -156,15 +129,6 @@ public class ApplicationDraftController {
         }
     }
 
-    private String normalizeBirthYear(String value) {
-        String year = limit(value, 4);
-        if (year == null || year.isBlank()) return year;
-        if (!year.matches("(19|20)\\d{2}")) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "출생연도는 네 자리 숫자로 입력해주세요.");
-        }
-        return year;
-    }
-
     private String limit(String value, int maxLength) {
         if (value == null) return null;
         String normalized = value.trim();
@@ -176,16 +140,8 @@ public class ApplicationDraftController {
 
     public record DraftRequest(
             Long programId,
-            String applicantName,
-            String phone,
-            String birthYear,
-            String district,
-            String householdType,
-            String incomeRange,
-            String memo,
             boolean eligibilityConfirmed,
-            boolean documentsReady,
-            boolean termsAccepted) {
+            boolean documentsReady) {
     }
 
     public record DraftResponse(
@@ -194,16 +150,8 @@ public class ApplicationDraftController {
             String programTitle,
             String officialUrl,
             ApplicationChannel application,
-            String applicantName,
-            String phone,
-            String birthYear,
-            String district,
-            String householdType,
-            String incomeRange,
-            String memo,
             boolean eligibilityConfirmed,
             boolean documentsReady,
-            boolean termsAccepted,
             String status,
             int completionPercent,
             LocalDateTime updatedAt,

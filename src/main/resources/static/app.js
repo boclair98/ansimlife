@@ -36,7 +36,7 @@ const categories = [
 const legacyCategories = { 주거:'주거·자립', 안전:'행정·안전', 생활:'생활안정', 관계:'문화·환경' };
 const categoryIcons = Object.fromEntries(categories.map(item => [item.name, item.icon]));
 const journeyLabels = {
-    PREPARING: '신청 준비 중',
+    PREPARING: '혜택 준비 중',
     OFFICIAL_SITE_OPENED: '공식 신청처 확인',
     USER_REPORTED_SUBMITTED: '내가 신청했다고 기록',
     SUPPLEMENT_REQUESTED: '보완 요청 받음',
@@ -95,8 +95,8 @@ function openDialog(dialog) {
 function applicationChannel(item) {
     return item?.application ?? {
         mode: 'PREPARATION_ONLY',
-        label: '신청 준비 가능',
-        description: '안심생활에서 준비한 뒤 안내된 기관에 최종 제출해야 해요.',
+        label: '공식 접수처 확인',
+        description: '조건과 서류를 확인한 뒤 안내된 공식 기관에 직접 제출해요.',
         directAvailable: false,
         officialUrl: item?.applyUrl ?? null
     };
@@ -257,7 +257,7 @@ function draftStatus(draft) {
     if (draft.status === 'SUBMITTED' && draft.externalReceiptNumber) return { label:'기관 접수 확인 완료', tone:'confirmed', verified:true };
     const status = draft.journeyStatus || 'PREPARING';
     const tone = ['APPROVED'].includes(status) ? 'success' : ['SUPPLEMENT_REQUESTED','REJECTED'].includes(status) ? 'warning' : status === 'PREPARING' ? 'neutral' : 'active';
-    return { label: journeyLabels[status] || '신청 준비 중', tone, verified:false };
+    return { label: journeyLabels[status] || '혜택 준비 중', tone, verified:false };
 }
 
 function renderApplications() {
@@ -272,7 +272,7 @@ function renderApplications() {
             <div class="application-progress"><span><i style="width:${draft.completionPercent}%"></i></span><b>${draft.completionPercent}% 준비</b></div>
             <footer><span>${draft.nextActionDate ? `다음 확인 ${formatDate(draft.nextActionDate)}` : '다음 확인일 미설정'}</span><div>${draft.status !== 'SUBMITTED' ? `<button class="text-button" data-draft-action="delete" data-id="${draft.id}" type="button">삭제</button>` : ''}<button class="primary-button" data-draft-action="resume" data-program-id="${draft.programId}" type="button">이어가기</button></div></footer>
         </article>`;
-    }).join('') : '<div class="empty-inline">아직 준비 중인 신청이 없어요. 혜택 카드에서 ‘신청 준비’를 눌러 시작해보세요.</div>';
+    }).join('') : '<div class="empty-inline">아직 관리 중인 혜택이 없어요. 혜택 카드에서 ‘신청 준비’를 눌러 시작해보세요.</div>';
 }
 
 async function loadSession() {
@@ -457,8 +457,6 @@ async function openPreparation(item, requestedStep) {
     byId('preparationDeadline').textContent = item.deadline || '확인 필요';
     byId('eligibilityTarget').textContent = item.target || '';
     byId('eligibilityConfirmed').checked = draft?.eligibilityConfirmed ?? false;
-    byId('termsAccepted').checked = draft?.termsAccepted ?? false;
-    ['applicantName','phone','birthYear','district','householdType','incomeRange','memo'].forEach(id => byId(id).value = draft?.[id] ?? '');
     byId('journeyStatus').value = draft?.journeyStatus === 'INSTITUTION_CONFIRMED' ? 'RESULT_WAITING' : draft?.journeyStatus || 'PREPARING';
     byId('userReceiptMemo').value = draft?.userReceiptMemo ?? '';
     byId('nextActionDate').value = draft?.nextActionDate ?? '';
@@ -466,7 +464,7 @@ async function openPreparation(item, requestedStep) {
     renderChecklist(item);
     byId('officialDocumentPreview').textContent = '공식 상세정보를 불러오는 중이에요.';
     byId('callScriptText').textContent = callScript(item);
-    setStep(requestedStep || (draft && draft.journeyStatus && draft.journeyStatus !== 'PREPARING' ? 4 : 1));
+    setStep(requestedStep || (draft && draft.journeyStatus && draft.journeyStatus !== 'PREPARING' ? 3 : 1));
     openDialog(byId('preparationDialog'));
     const detail = await fetchDetail(item);
     if (state.activeProgram?.id === item.id) renderPreparationDetail(item, detail);
@@ -483,11 +481,11 @@ function renderInstitutionReceipt(draft) {
 }
 
 function setStep(step) {
-    state.activeStep = Math.min(4, Math.max(1, Number(step)));
+    state.activeStep = Math.min(3, Math.max(1, Number(step)));
     document.querySelectorAll('.stepper [data-step]').forEach(button => button.classList.toggle('active', Number(button.dataset.step) <= state.activeStep));
     document.querySelectorAll('.step-pane').forEach(pane => pane.classList.toggle('active', Number(pane.dataset.pane) === state.activeStep));
     syncPreparationActions();
-    if (state.activeStep === 3) updateReview();
+    if (state.activeStep === 2) updateReview();
 }
 
 function syncPreparationActions() {
@@ -497,12 +495,11 @@ function syncPreparationActions() {
     const submitted = draft?.status === 'SUBMITTED';
     const officialUrl = state.activeProgram.onlineUrl || channel.officialUrl || state.activeProgram.applyUrl;
     byId('stepBack').hidden = state.activeStep === 1;
-    byId('stepNext').hidden = state.activeStep === 4;
+    byId('stepNext').hidden = state.activeStep === 3;
     byId('loginToSave').hidden = state.signedIn || submitted;
     byId('saveDraft').hidden = !state.signedIn || submitted;
-    byId('officialApply').hidden = state.activeStep < 3 || submitted || channel.directAvailable || !officialUrl;
+    byId('officialApply').hidden = state.activeStep !== 2 || submitted || !officialUrl;
     byId('officialApply').href = officialUrl || '#';
-    byId('submitApplication').hidden = state.activeStep !== 3 || !state.signedIn || submitted || !channel.directAvailable;
 }
 
 function updateChecklistProgress() {
@@ -519,29 +516,30 @@ function collectDraft() {
     const checklist = [...document.querySelectorAll('#checklist input')];
     return {
         programId: state.activeProgram.id,
-        applicantName: formValue('applicantName'), phone:formValue('phone'), birthYear:formValue('birthYear'), district:formValue('district'),
-        householdType:formValue('householdType'), incomeRange:formValue('incomeRange'), memo:formValue('memo'),
         eligibilityConfirmed:byId('eligibilityConfirmed').checked,
-        documentsReady:checklist.length > 0 && checklist.every(input => input.checked),
-        termsAccepted:byId('termsAccepted').checked
+        documentsReady:checklist.length > 0 && checklist.every(input => input.checked)
     };
 }
 
 function updateReview() {
     if (!state.activeProgram) return;
     const values = collectDraft();
-    const entries = [['이름',values.applicantName],['연락처',values.phone],['출생연도',values.birthYear],['거주지역',values.district],['가구형태',values.householdType],['소득구간',values.incomeRange]];
-    byId('reviewGrid').innerHTML = entries.map(([label,value]) => `<div><span>${label}</span><strong class="${value ? '' : 'missing'}">${escapeHtml(value || '입력 필요')}</strong></div>`).join('');
-    const channel = applicationChannel(state.activeProgram);
+    const item = state.activeProgram;
+    const channel = applicationChannel(item);
+    const entries = [
+        ['지원대상', values.eligibilityConfirmed ? '확인 완료' : '확인 필요', values.eligibilityConfirmed],
+        ['준비서류', values.documentsReady ? '체크 완료' : '확인 필요', values.documentsReady],
+        ['신청기간', item.deadline || '공식 안내 확인', true],
+        ['접수기관', item.receptionAgency || item.agency || '공식 안내 확인', true]
+    ];
+    byId('reviewGrid').innerHTML = entries.map(([label,value,complete]) => `<div><span>${label}</span><strong class="${complete ? '' : 'missing'}">${escapeHtml(value)}</strong></div>`).join('');
     const route = byId('applicationRoute');
     route.className = `application-route route-${channelClass(channel.mode)}`;
     route.innerHTML = `<i>${channel.directAvailable ? '✓' : channel.mode === 'NO_APPLICATION' ? 'i' : '↗'}</i><div><span>현재 신청 방식</span><strong>${escapeHtml(channel.label)}</strong><p>${escapeHtml(channel.description)}</p></div>`;
-    byId('termsTitle').textContent = channel.directAvailable ? '작성 내용 저장과 접수기관 제출에 동의해요' : '작성 내용 저장에 동의해요';
-    byId('termsHelp').textContent = channel.directAvailable ? '기관 API 접수번호가 확인된 경우에만 완료로 표시합니다.' : '안심생활은 준비정보만 저장하며 최종 제출은 공식 접수처에서 진행합니다.';
-    const complete = entries.every(([,value]) => hasText(value)) && values.eligibilityConfirmed && values.documentsReady && values.termsAccepted;
+    const complete = values.eligibilityConfirmed && values.documentsReady;
     const status = byId('readyStatus');
     status.classList.toggle('complete', complete);
-    status.innerHTML = complete ? '<i>✓</i><div><strong>공식 신청을 시작할 준비가 됐어요</strong><p>공식 접수처에서 최종 조건을 확인하고 제출해주세요.</p></div>' : '<i>⌛</i><div><strong>아직 준비 중이에요</strong><p>필수 정보와 조건·서류 체크를 완료해주세요.</p></div>';
+    status.innerHTML = complete ? '<i>✓</i><div><strong>공식 신청처로 이동할 준비가 됐어요</strong><p>개인정보와 증빙서류는 공식 기관 화면에서만 입력해주세요.</p></div>' : '<i>⌛</i><div><strong>확인할 항목이 남아 있어요</strong><p>조건과 서류 체크를 완료한 뒤 공식 신청처를 열어주세요.</p></div>';
     syncPreparationActions();
 }
 
@@ -558,7 +556,7 @@ async function saveDraft({ silent = false } = {}) {
         const draft = await response.json();
         state.drafts = [draft, ...state.drafts.filter(value => value.id !== draft.id)];
         renderApplications(); renderPrograms(state.visibleItems); renderInstitutionReceipt(draft); syncPreparationActions();
-        if (!silent) showToast(draft.status === 'READY_TO_SUBMIT' ? '공식 신청 준비가 완료됐어요.' : '작성 내용을 저장했어요.');
+        if (!silent) showToast(draft.status === 'READY_TO_SUBMIT' ? '조건과 서류 체크를 저장했어요.' : '현재 준비상태를 저장했어요.');
         return draft;
     } catch (error) { if (!silent) showToast(error.message); return null; }
     finally { button.disabled = false; button.textContent = original; }
@@ -577,23 +575,6 @@ async function updateJourney(status, receiptMemo, nextActionDate, { silent = fal
         if (!silent) showToast('내 진행상태를 저장했어요.');
         return updated;
     } catch (error) { if (!silent) showToast(error.message); return null; }
-}
-
-async function submitDirectApplication() {
-    const draft = await saveDraft({ silent:true });
-    if (!draft) return;
-    if (draft.status !== 'READY_TO_SUBMIT') { showToast('필수 정보와 체크 항목을 모두 완료해주세요.'); return; }
-    const button = byId('submitApplication');
-    button.disabled = true;
-    try {
-        const response = await fetch(`/api/applications/drafts/${draft.id}/submit`, { method:'POST' });
-        if (!response.ok) throw new Error(await errorMessage(response, '기관 신청을 완료하지 못했어요.'));
-        const updated = await response.json();
-        state.drafts = [updated, ...state.drafts.filter(value => value.id !== updated.id)];
-        renderApplications(); renderInstitutionReceipt(updated); setStep(4);
-        showToast(`기관 접수가 확인됐어요. 접수번호 ${updated.externalReceiptNumber}`);
-    } catch (error) { showToast(error.message); }
-    finally { button.disabled = false; }
 }
 
 async function markOfficialOpened() {
@@ -642,7 +623,7 @@ function setAuthMode(mode) {
     document.querySelectorAll('[data-auth-mode]').forEach(button => button.classList.toggle('active', button.dataset.authMode === mode));
     byId('displayNameField').hidden = mode !== 'register';
     byId('authTitle').textContent = mode === 'register' ? '처음 오셨군요' : '다시 만나서 반가워요';
-    byId('authDescription').textContent = mode === 'register' ? '계정을 만들고 신청 준비를 이어가세요.' : '이메일로 간편하게 로그인하세요.';
+    byId('authDescription').textContent = mode === 'register' ? '계정을 만들고 혜택 준비를 이어가세요.' : '이메일로 간편하게 로그인하세요.';
     byId('authSubmit').textContent = mode === 'register' ? '회원가입하고 시작하기' : '로그인';
     byId('authPassword').autocomplete = mode === 'register' ? 'new-password' : 'current-password';
     byId('authError').textContent = '';
@@ -723,13 +704,10 @@ document.querySelectorAll('.stepper [data-step]').forEach(button => button.addEv
 byId('stepBack').addEventListener('click', () => setStep(state.activeStep - 1));
 byId('stepNext').addEventListener('click', () => setStep(state.activeStep + 1));
 byId('checklist').addEventListener('change', updateChecklistProgress);
-byId('applicationForm').addEventListener('input', updateReview);
 byId('eligibilityConfirmed').addEventListener('change', updateReview);
-byId('termsAccepted').addEventListener('change', updateReview);
 byId('saveDraft').addEventListener('click', () => saveDraft());
 byId('loginToSave').addEventListener('click', () => openAuth());
 byId('officialApply').addEventListener('click', markOfficialOpened);
-byId('submitApplication').addEventListener('click', submitDirectApplication);
 byId('copyPreparationCallScript').addEventListener('click', () => state.activeProgram && copyText(callScript(state.activeProgram)));
 byId('journeyForm').addEventListener('submit', async event => {
     event.preventDefault();
@@ -745,11 +723,11 @@ byId('applicationList').addEventListener('click', async event => {
     if (!action) return;
     if (action.dataset.draftAction === 'resume') {
         const item = await loadProgramById(action.dataset.programId);
-        item ? openPreparation(item, 4) : showToast('혜택 정보를 다시 불러오지 못했어요.');
+        item ? openPreparation(item, 3) : showToast('혜택 정보를 다시 불러오지 못했어요.');
     }
     if (action.dataset.draftAction === 'delete') {
         const response = await fetch(`/api/applications/drafts/${action.dataset.id}`, { method:'DELETE' });
-        if (response.ok) { state.drafts = state.drafts.filter(value => value.id !== Number(action.dataset.id)); renderApplications(); renderPrograms(state.visibleItems); showToast('작성 중인 신청을 삭제했어요.'); }
+        if (response.ok) { state.drafts = state.drafts.filter(value => value.id !== Number(action.dataset.id)); renderApplications(); renderPrograms(state.visibleItems); showToast('저장한 혜택 준비를 삭제했어요.'); }
     }
 });
 
