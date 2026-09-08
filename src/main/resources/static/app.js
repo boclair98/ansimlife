@@ -539,7 +539,7 @@ function updateReview() {
     const complete = values.eligibilityConfirmed && values.documentsReady;
     const status = byId('readyStatus');
     status.classList.toggle('complete', complete);
-    status.innerHTML = complete ? '<i>✓</i><div><strong>공식 신청처로 이동할 준비가 됐어요</strong><p>개인정보와 증빙서류는 공식 기관 화면에서만 입력해주세요.</p></div>' : '<i>⌛</i><div><strong>확인할 항목이 남아 있어요</strong><p>조건과 서류 체크를 완료한 뒤 공식 신청처를 열어주세요.</p></div>';
+    status.innerHTML = complete ? '<i>✓</i><div><strong>공식 신청처로 이동할 준비가 됐어요</strong><p>개인정보와 증빙서류는 공식 기관 화면에서만 입력해주세요.</p></div>' : '<i>⌛</i><div><strong>확인할 항목이 남아 있어요</strong><p>공식 신청처는 바로 열 수 있고, 체크를 마치면 준비 누락을 줄일 수 있어요.</p></div>';
     syncPreparationActions();
 }
 

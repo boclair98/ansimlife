@@ -406,7 +406,7 @@ button:disabled { cursor: wait; opacity: .55; }
 }
 
 @media (max-width: 420px) {
-    .hero h1 { font-size: 37px; }.hero-actions { grid-template-columns: 1fr; }.hero-stats span { font-size: 8px; }.program-title { grid-template-columns: 40px minmax(0,1fr); }.program-title > span { width: 40px; height: 40px; }.program-title h3 { font-size: 18px; }.program-meta > div { grid-template-columns: 35px minmax(0,1fr); }.benefit-actions { grid-template-columns: .72fr .85fr 1.2fr; }.benefit-actions > * { font-size: 10px; }.preparation-actions #loginToSave { grid-column: 3; }.preparation-actions #stepNext, .preparation-actions #officialApply { grid-column: 4; }.preparation-actions > button, .preparation-actions > a { font-size: 10px; }.confirmation-row { padding: 12px; }
+    .hero h1 { font-size: 37px; }.hero-actions { grid-template-columns: 1fr; }.hero-stats span { font-size: 8px; }.program-title { grid-template-columns: 40px minmax(0,1fr); }.program-title > span { width: 40px; height: 40px; }.program-title h3 { font-size: 18px; }.program-meta > div { grid-template-columns: 35px minmax(0,1fr); }.benefit-actions { grid-template-columns: .72fr .85fr 1.2fr; }.benefit-actions > * { font-size: 10px; }.preparation-actions #loginToSave, .preparation-actions #officialApply { grid-column: 3; }.preparation-actions #stepNext { grid-column: 4; }.preparation-actions > button, .preparation-actions > a { font-size: 10px; }.confirmation-row { padding: 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
