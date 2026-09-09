@@ -159,7 +159,7 @@ async function loadMeta() {
         });
         state.totalBenefits = Number(meta.storedCount || meta.totalAvailable || 0);
         byId('storedBenefitCount').textContent = `${formatNumber(meta.storedCount)}개 혜택`;
-        byId('heroBenefitCount').textContent = `${formatNumber(meta.totalAvailable || meta.storedCount)}개`;
+        byId('heroBenefitCount').textContent = `${formatNumber(meta.storedCount || meta.totalAvailable)}개`;
         byId('heroCategoryCount').textContent = `${Math.max(Object.keys(counts).length, categories.length)}개 분야`;
         const labels = { READY:'최신 정보 반영 완료', SYNCING:'전체 혜택 동기화 중', PARTIAL:'혜택 추가 반영 중', WAITING:'동기화 준비 중', DISABLED:'데이터 연결 필요', ERROR:'저장된 최신 정보 제공 중' };
         byId('syncStatus').textContent = labels[meta.syncStatus] ?? '공식정보 매일 최신화';
