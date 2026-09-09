@@ -556,6 +556,14 @@ DATA_GO_KR_SERVICE_KEY
 
 PostgreSQL 연결정보는 `coders.yaml`의 컴포넌트 참조를 통해 웹 서비스에 전달됩니다. `.coders/` 디렉터리와 로컬 토큰은 `.gitignore`로 제외되어 있습니다.
 
+
+## 운영·자동 배포
+
+- 배포 원본은 [boclair98/ansimlife](https://github.com/boclair98/ansimlife)의 기본 브랜치입니다.
+- 조직 저장소 [coders-kr/ansimlife](https://github.com/coders-kr/ansimlife)는 원본의 실제 Fork로 유지하고, 원본 변경 후 동기화합니다.
+- Coders.kr 프로젝트는 [ansimlife.coders.kr](https://ansimlife.coders.kr)이며, 원본 저장소의 변경을 기준으로 빌드·릴리스합니다.
+- 변경은 CI 검증을 통과한 뒤 원본 `main`에 반영하고, 배포 상태와 운영 URL을 확인합니다.
+
 ## 문제 해결
 
 ### 전체 혜택이 보이지 않을 때
