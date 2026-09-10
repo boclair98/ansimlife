@@ -6,8 +6,8 @@
     <meta name="description" content="전국의 정부·공공기관 혜택을 찾고, 자격·서류 확인부터 공식 신청처와 진행상태까지 관리하는 혜택 내비게이터입니다.">
     <meta name="theme-color" content="#ff6542">
     <title>안심생활 | 혜택 신청 내비게이터</title>
-    <link rel="stylesheet" href="/app.css?v=30">
-    <script defer src="/app.js?v=30"></script>
+    <link rel="stylesheet" href="/app.css?v=31">
+    <script defer src="/app.js?v=31"></script>
 </head>
 <body>
 <div class="site-shell">
@@ -22,14 +22,14 @@
     <main id="top">
         <section class="hero container">
             <div class="hero-copy">
-                <span class="eyebrow">대한민국 공공혜택 신청 내비게이터</span>
-                <h1>받을 수 있는 혜택,<br><em>찾는 데서 끝내지 마세요.</em></h1>
-                <p>내 조건에 맞는 혜택을 좁히고, 준비서류와 신청 순서를 챙긴 다음 공식 접수 이후 결과까지 한곳에서 관리하세요.</p>
+                <span class="eyebrow">대한민국 공공혜택 정보 내비게이터</span>
+                <h1>내게 필요한 공공혜택을<br><em>한눈에 비교해보세요.</em></h1>
+                <p>전국 공공기관 정보를 지역·분야·조건으로 정리해 대상, 지원내용, 신청기간을 빠르게 확인할 수 있어요.</p>
                 <div class="hero-actions"><button id="diagnosisOpen" class="primary-button large-button" type="button">5분 맞춤진단 시작</button><a class="ghost-button large-button" href="#discover">전체 혜택 보기</a></div>
                 <div class="hero-stats" aria-label="서비스 현황"><div><strong id="heroBenefitCount">1만+</strong><span>저장된 공공 혜택</span></div><div><strong id="heroCategoryCount">10개</strong><span>생활 전 분야</span></div><div><strong>매일</strong><span>공식정보 최신화</span></div></div>
             </div>
             <aside class="hero-board" aria-label="안심생활이 돕는 과정">
-                <div class="board-top"><span>오늘의 신청 루트</span><b>약 5분</b></div><h2>나에게 필요한 혜택부터<br>하나씩 끝내봐요.</h2>
+                <div class="board-top"><span>혜택 정보를 보는 순서</span><b>공식정보 기준</b></div><h2>복잡한 공고에서<br>필요한 내용만 먼저 봐요.</h2>
                 <ol><li class="done"><i>✓</i><span><strong>혜택 후보 찾기</strong><small>지역·상황으로 빠르게 압축</small></span></li><li><i>2</i><span><strong>조건·서류 확인</strong><small>공식 상세정보로 준비</small></span></li><li><i>3</i><span><strong>공식 접수</strong><small>정확한 기관 화면으로 이동</small></span></li><li><i>4</i><span><strong>결과 관리</strong><small>접수·보완·결과 일정 기록</small></span></li></ol>
                 <button id="heroFeatured" class="board-action" type="button">오늘 먼저 볼 혜택 열기 <span>→</span></button>
             </aside>
@@ -48,14 +48,14 @@
         <section id="savedSection" class="saved-section container" hidden><div class="section-title-row compact"><div><span class="section-label">SAVED</span><h2>관심 혜택</h2></div><p>관심 혜택은 현재 브라우저에 저장됩니다.</p></div><div id="savedList" class="saved-list"></div></section>
 
         <section id="discover" class="discover-section container">
-            <div class="discover-heading"><div><span class="section-label">FIND BENEFITS</span><h2>어떤 도움이 필요한가요?</h2><p>키워드·지역·분야를 조합하면 더 정확하게 찾을 수 있어요.</p></div><button id="diagnosisOpenSecondary" class="soft-button" type="button">내 조건으로 추천받기 <span>→</span></button></div>
+            <div class="discover-heading"><div><span class="section-label">FIND BENEFITS</span><h2>필요한 혜택 정보를 찾아보세요</h2><p>키워드·지역·분야를 조합하거나 맞춤진단으로 결과를 좁힐 수 있어요.</p></div><button id="diagnosisOpenSecondary" class="soft-button" type="button">내 조건으로 추천받기 <span>→</span></button></div>
             <form id="searchForm" class="search-form"><label class="search-keyword"><span class="sr-only">검색어</span><i aria-hidden="true">⌕</i><input id="keyword" type="search" placeholder="청년월세, 출산, 취업, 의료비" maxlength="80"></label><label><span class="sr-only">지역</span><select id="region"><option value="">전체 지역</option><option>전국</option><option>서울</option><option>부산</option><option>대구</option><option>인천</option><option>광주</option><option>대전</option><option>울산</option><option>세종</option><option>경기</option><option>강원</option><option>충북</option><option>충남</option><option>전북</option><option>전남</option><option>경북</option><option>경남</option><option>제주</option></select></label><label><span class="sr-only">분야</span><select id="category"><option value="">전체 분야</option></select></label><button class="primary-button" type="submit">혜택 찾기</button></form>
             <div id="quickCategories" class="quick-categories" aria-label="빠른 분야 선택"></div><div id="categoryGrid" class="category-grid" aria-label="분야별 혜택"></div>
         </section>
 
         <section class="results-layout container">
-            <div class="result-panel"><div class="result-heading"><div><span class="section-label">ALL BENEFITS</span><h2 id="programsHeading">혜택 둘러보기</h2></div><span id="count">불러오는 중…</span></div><div id="programList" class="program-grid" aria-live="polite"></div><button id="loadMore" class="load-more" type="button" hidden>혜택 더 보기 <span>↓</span></button></div>
-            <aside class="my-panel"><span class="section-label">MY ANSIMLIFE</span><h2>내 혜택 여정을<br>한곳에서 관리해요.</h2><p>개인정보 입력 없이 관심 혜택, 준비 체크, 공식 접수 후 결과 확인일까지 정리해드려요.</p><div class="my-panel-counts"><div><span>준비 중</span><strong id="asideApplicationCount">0</strong></div><div><span>관심</span><strong id="asideSavedCount">0</strong></div></div><button id="asideApplications" class="dark-button full-button" type="button">내 혜택 이어보기</button><button id="asideSaved" class="ghost-button full-button" type="button">관심 혜택 보기</button><ul><li>신청용 개인정보를 받지 않아요</li><li>공식 접수처를 정확히 연결해요</li><li>접수·결과 상태는 내가 기록해요</li></ul></aside>
+            <div class="result-panel"><div class="result-heading"><div><span class="section-label">BENEFIT LIST</span><h2 id="programsHeading">조건에 맞는 혜택</h2><p id="resultSubcopy">카드에서 핵심 정보를 먼저 확인하고, 자세한 기준은 상세 화면에서 확인하세요.</p></div><span id="count">불러오는 중…</span></div><div class="result-legend" aria-label="혜택 표시 기준"><span class="legend-match"><i>✓</i>내 조건과 명시적으로 일치</span><span class="legend-general"><i>i</i>공식 기준 추가 확인</span></div><div id="programList" class="program-grid" aria-live="polite"></div><button id="loadMore" class="load-more" type="button" hidden>혜택 더 보기 <span>↓</span></button></div>
+            <aside class="my-panel"><span class="section-label">MY ANSIMLIFE</span><h2>찾은 혜택을<br>놓치지 않게 관리해요.</h2><p>관심 혜택과 준비 체크, 공식 접수 후 내가 기록한 진행상태를 한곳에서 확인합니다.</p><div class="my-panel-counts"><div><span>준비 중</span><strong id="asideApplicationCount">0</strong></div><div><span>관심</span><strong id="asideSavedCount">0</strong></div></div><button id="asideApplications" class="dark-button full-button" type="button">내 혜택 이어보기</button><button id="asideSaved" class="ghost-button full-button" type="button">관심 혜택 보기</button><ul><li>신청용 개인정보를 받지 않아요</li><li>공식 접수처와 상세 기준을 보여줘요</li><li>접수·결과 상태는 내가 기록해요</li></ul></aside>
         </section>
 
         <section class="boundary-note container"><span>꼭 확인해주세요</span><p>안심생활은 혜택 탐색과 신청 준비를 돕는 내비게이터입니다. 신청용 개인정보를 수집하거나 접수를 대신하지 않으며, 최종 제출은 연결된 공식 사이트·전화·방문 창구에서 진행합니다.</p></section>

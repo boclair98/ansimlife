@@ -173,9 +173,9 @@ async function loadMeta() {
 }
 
 function recommendationBadge(item) {
-    if (state.diagnosis && item.audienceStatus === 'MATCHED') {
-        return '<span class="recommendation-chip">내 조건 일치</span>';
-    }
+    if (!state.diagnosis) return '';
+    if (item.audienceStatus === 'MATCHED') return '<span class="recommendation-chip">내 조건 일치</span>';
+    if (item.audienceStatus === 'GENERAL') return '<span class="criteria-chip">공식 기준 확인</span>';
     return '';
 }
 
@@ -194,13 +194,17 @@ function renderPrograms(items) {
         const channel = applicationChannel(item);
         const saved = state.savedIds.has(item.id);
         const progress = draft ? `<div class="card-progress"><span><i style="width:${draft.completionPercent}%"></i></span><b>${journeyLabels[draft.journeyStatus] || `${draft.completionPercent}% 준비`}</b></div>` : '';
+        const audienceNote = state.diagnosis && item.audienceReason && item.audienceStatus !== 'EXCLUDED'
+            ? `<div class="audience-reason ${String(item.audienceStatus || 'GENERAL').toLowerCase()}"><i>${item.audienceStatus === 'MATCHED' ? '✓' : 'i'}</i><span>${escapeHtml(item.audienceReason)}</span></div>`
+            : '';
         return `<article class="program-card">
             <header><div class="card-tags"><span>${escapeHtml(category)}</span>${item.urgent ? '<span class="urgent-chip">먼저 확인</span>' : ''}${recommendationBadge(item)}</div><button class="save-button ${saved ? 'active' : ''}" data-action="save" data-id="${item.id}" type="button" aria-label="${saved ? '관심 혜택에서 제거' : '관심 혜택에 저장'}">${saved ? '♥' : '♡'}</button></header>
             <div class="program-title"><span>${categoryIcons[category] ?? '•'}</span><div><small>${escapeHtml(item.region || '전국')}</small><h3>${escapeHtml(item.title)}</h3></div></div>
             <p class="program-summary">${escapeHtml(item.summary || '공식 상세정보에서 지원 내용을 확인할 수 있어요.')}</p>
+            ${audienceNote}
             <dl class="program-meta"><div><dt>대상</dt><dd>${escapeHtml(item.target || '상세 조건 확인 필요')}</dd></div><div><dt>혜택</dt><dd>${escapeHtml(item.benefit || '지원 내용 확인 필요')}</dd></div></dl>
             ${progress}
-            <footer><div><span class="route-chip route-${channelClass(channel.mode)}">${escapeHtml(channel.label)}</span><small>${escapeHtml(item.deadline || '신청기간 확인 필요')}</small></div><div class="card-buttons"><button class="ghost-button" data-action="detail" data-id="${item.id}" type="button">상세</button><button class="primary-button" data-action="prepare" data-id="${item.id}" type="button">${draft ? '이어서 준비' : '신청 준비'}</button></div></footer>
+            <footer><div><span class="route-chip route-${channelClass(channel.mode)}">${escapeHtml(channel.label)}</span><small>${escapeHtml(item.deadline || '신청기간 확인 필요')}</small></div><div class="card-buttons"><button class="ghost-button" data-action="detail" data-id="${item.id}" type="button">자세히 보기</button><button class="primary-button" data-action="prepare" data-id="${item.id}" type="button">${draft ? '이어서 준비' : '신청 준비'}</button></div></footer>
         </article>`;
     }).join('');
 }
