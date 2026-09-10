@@ -148,6 +148,19 @@ function syncCategorySelection(category) {
     });
 }
 
+function setProgramBusy(busy) {
+    const grid = byId('programList');
+    grid.setAttribute('aria-busy', String(busy));
+    const submit = document.querySelector('#searchForm button[type="submit"]');
+    if (submit) submit.disabled = busy;
+}
+
+function renderProgramError(message) {
+    const grid = byId('programList');
+    grid.innerHTML = `<div class="empty-state" role="alert"><span>!</span><h3>혜택을 불러오지 못했어요</h3><p>${escapeHtml(message)}</p><button id="retryPrograms" class="primary-button" type="button">다시 시도</button></div>`;
+    byId('retryPrograms').addEventListener('click', () => loadPrograms());
+}
+
 async function loadMeta() {
     try {
         const response = await fetch('/api/programs/meta');
@@ -212,8 +225,9 @@ function renderPrograms(items) {
 async function loadPrograms(page = 0, append = false) {
     if (state.loading) return;
     state.loading = true;
+    setProgramBusy(true);
     if (!append) {
-        byId('programList').innerHTML = '<div class="loading-state"><i></i><span>혜택을 찾고 있어요</span></div>';
+        byId('programList').innerHTML = '<div class="loading-state" role="status" aria-live="polite"><i></i><span>혜택을 찾고 있어요</span></div>';
     }
     const query = new URLSearchParams({
         keyword: byId('keyword').value.trim(),
@@ -243,8 +257,11 @@ async function loadPrograms(page = 0, append = false) {
         renderPrograms(state.visibleItems);
         renderSaved();
     } catch (error) {
-        byId('programList').innerHTML = `<div class="empty-state"><span>!</span><h3>혜택을 불러오지 못했어요</h3><p>${escapeHtml(error.message)}</p></div>`;
-    } finally { state.loading = false; }
+        renderProgramError(error.message);
+    } finally {
+        state.loading = false;
+        setProgramBusy(false);
+    }
 }
 
 function toggleSaved(id) {
