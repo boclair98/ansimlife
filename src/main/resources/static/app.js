@@ -197,14 +197,14 @@ function renderPrograms(items) {
         const audienceNote = state.diagnosis && item.audienceReason && item.audienceStatus !== 'EXCLUDED'
             ? `<div class="audience-reason ${String(item.audienceStatus || 'GENERAL').toLowerCase()}"><i>${item.audienceStatus === 'MATCHED' ? '✓' : 'i'}</i><span>${escapeHtml(item.audienceReason)}</span></div>`
             : '';
-        return `<article class="program-card">
+        return `<article class="program-card program-list-item" data-action="detail" data-id="${item.id}" tabindex="0" aria-label="${escapeHtml(item.title)} 상세 보기">
             <header><div class="card-tags"><span>${escapeHtml(category)}</span>${item.urgent ? '<span class="urgent-chip">먼저 확인</span>' : ''}${recommendationBadge(item)}</div><button class="save-button ${saved ? 'active' : ''}" data-action="save" data-id="${item.id}" type="button" aria-label="${saved ? '관심 혜택에서 제거' : '관심 혜택에 저장'}">${saved ? '♥' : '♡'}</button></header>
             <div class="program-title"><span>${categoryIcons[category] ?? '•'}</span><div><small>${escapeHtml(item.region || '전국')}</small><h3>${escapeHtml(item.title)}</h3></div></div>
             <p class="program-summary">${escapeHtml(item.summary || '공식 상세정보에서 지원 내용을 확인할 수 있어요.')}</p>
             ${audienceNote}
-            <dl class="program-meta"><div><dt>대상</dt><dd>${escapeHtml(item.target || '상세 조건 확인 필요')}</dd></div><div><dt>혜택</dt><dd>${escapeHtml(item.benefit || '지원 내용 확인 필요')}</dd></div></dl>
             ${progress}
-            <footer><div><span class="route-chip route-${channelClass(channel.mode)}">${escapeHtml(channel.label)}</span><small>${escapeHtml(item.deadline || '신청기간 확인 필요')}</small></div><div class="card-buttons"><button class="ghost-button" data-action="detail" data-id="${item.id}" type="button">자세히 보기</button><button class="primary-button" data-action="prepare" data-id="${item.id}" type="button">${draft ? '이어서 준비' : '신청 준비'}</button></div></footer>
+            <div class="program-row-facts" aria-label="핵심 정보"><span><i>지역</i>${escapeHtml(item.region || '전국')}</span><span><i>신청</i>${escapeHtml(channel.label)}</span><span><i>기간</i>${escapeHtml(item.deadline || '공식 안내 확인')}</span></div>
+            <div class="program-row-action"><span class="program-row-hint">대상·혜택·서류<br>전체 정보 보기</span><div class="card-buttons"><button class="ghost-button" data-action="detail" data-id="${item.id}" type="button">자세히 보기</button><button class="primary-button" data-action="prepare" data-id="${item.id}" type="button">${draft ? '이어서 준비' : '신청 준비'}</button></div></div>
         </article>`;
     }).join('');
 }
@@ -806,6 +806,14 @@ byId('quickCategories').addEventListener('click', event => { const button = even
 byId('categoryGrid').addEventListener('click', event => { const button = event.target.closest('[data-category]'); if (!button) return; clearDiagnosis(); byId('category').value = button.dataset.category; syncCategorySelection(button.dataset.category); loadPrograms().then(() => byId('programsHeading').scrollIntoView({ behavior:'smooth' })); });
 byId('category').addEventListener('change', event => syncCategorySelection(event.target.value));
 byId('programList').addEventListener('click', handleProgramAction);
+byId('programList').addEventListener('keydown', event => {
+    const row = event.target.closest('.program-list-item[data-action="detail"]');
+    if (!row || event.target.closest('button, a, input, select')) return;
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    const item = state.items.find(value => value.id === Number(row.dataset.id));
+    if (item) openBenefitDetail(item);
+});
 byId('savedList').addEventListener('click', handleProgramAction);
 byId('diagnosisForm').addEventListener('submit', applyDiagnosis);
 byId('profileEditButton').addEventListener('click', () => { byId('authDialog').close(); openDiagnosis(); });
