@@ -50,6 +50,7 @@ class SupportProgramControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.total").value(2))
                 .andExpect(jsonPath("$.items[*].title", containsInAnyOrder("청년 월세 지원", "시민 주거상담")))
+                .andExpect(jsonPath("$.items[*].audienceStatus", containsInAnyOrder("MATCHED", "GENERAL")))
                 .andExpect(jsonPath("$.items[*].title", not(hasItem("독거노인 주거 안전 지원"))));
     }
 

@@ -753,6 +753,62 @@ fieldset legend,
     }
 }
 
+/* v30: make saved profile conditions visible and keep the extra income field balanced. */
+.diagnosis-body > .field:nth-child(3) {
+    grid-column: 1 / -1;
+}
+
+.member-profile-card {
+    min-width: 0;
+    margin: 22px 0 12px;
+    padding: 14px;
+    border: 1px solid #ccece1;
+    border-radius: 14px;
+    background: var(--green-soft);
+    text-align: left;
+}
+
+.member-profile-card span,
+.member-profile-card strong,
+.member-profile-card small {
+    display: block;
+}
+
+.member-profile-card span {
+    color: var(--green);
+    font-size: 10px;
+    font-weight: 850;
+}
+
+.member-profile-card strong {
+    margin-top: 5px;
+    color: var(--ink);
+    font-size: 12px;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+    word-break: keep-all;
+}
+
+.member-profile-card small {
+    margin-top: 4px;
+    color: #577069;
+    font-size: 10px;
+}
+
+.member-view .full-button + .full-button {
+    margin-top: 8px;
+}
+
+@media (max-width: 780px) {
+    .diagnosis-body > .field:nth-child(3) {
+        grid-column: 1;
+    }
+
+    .member-profile-card {
+        margin-top: 20px;
+    }
+}
+
 /* v29: align every content band across paired desktop benefit cards. */
 @media (min-width: 1101px) {
     @supports (grid-template-rows: subgrid) {

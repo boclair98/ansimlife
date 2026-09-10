@@ -66,12 +66,48 @@ public class SupportProgramAudienceMatcher {
                 && matchesHousehold(normalize(title + " " + target), household);
     }
 
+    public AudienceFit explain(SupportProgram program, String ageGroup, String household) {
+        return explain(program.getTitle(), program.getTarget(), ageGroup, household);
+    }
+
+    AudienceFit explain(String title, String target, String ageGroup, String household) {
+        if (isBlank(ageGroup) && isBlank(household)) {
+            return new AudienceFit("NONE", "맞춤 조건을 선택하면 지원대상 기준과 비교해드려요.");
+        }
+
+        String text = normalize(title + " " + target);
+        Set<AgeBand> detectedAges = detectAgeBands(text);
+        Set<Household> detectedHouseholds = detectHouseholds(text);
+        if (!matchesAge(text, ageGroup) || !matchesHousehold(text, household)) {
+            return new AudienceFit("EXCLUDED", "선택한 연령대 또는 가구 상황과 맞지 않는 명시적 조건이 있어요.");
+        }
+
+        boolean ageSpecific = !isBlank(ageGroup) && !detectedAges.isEmpty();
+        boolean householdSpecific = !isBlank(household) && !detectedHouseholds.isEmpty();
+        if (!ageSpecific && !householdSpecific) {
+            return new AudienceFit("GENERAL", "연령·가구 제한이 데이터에 명확하지 않아 공식 기준을 확인해야 해요.");
+        }
+
+        StringBuilder reason = new StringBuilder();
+        if (ageSpecific) reason.append(ageGroup).append(" 대상 조건이 포함돼 있어요");
+        if (householdSpecific) {
+            if (reason.length() > 0) reason.append(" · ");
+            reason.append(household).append(" 조건이 포함돼 있어요");
+        }
+        return new AudienceFit("MATCHED", reason.toString());
+    }
+
     private boolean matchesAge(String text, String ageGroup) {
         if (isBlank(ageGroup)) return true;
         AgeBand selected = AgeBand.from(ageGroup);
         if (selected == null) return false;
         if (containsAny(text, UNIVERSAL_AGE_TERMS)) return true;
 
+        Set<AgeBand> detected = detectAgeBands(text);
+        return detected.isEmpty() || detected.contains(selected);
+    }
+
+    private Set<AgeBand> detectAgeBands(String text) {
         Set<AgeBand> detected = EnumSet.noneOf(AgeBand.class);
         addWhenPresent(detected, AgeBand.TEEN, text, TEEN_TERMS);
         addWhenPresent(detected, AgeBand.YOUTH, text, YOUTH_TERMS);
@@ -85,7 +121,7 @@ public class SupportProgramAudienceMatcher {
         }
 
         addNumericAgeBands(detected, text);
-        return detected.isEmpty() || detected.contains(selected);
+        return detected;
     }
 
     private boolean matchesHousehold(String text, String household) {
@@ -93,14 +129,19 @@ public class SupportProgramAudienceMatcher {
         Household selected = Household.from(household);
         if (selected == null) return false;
 
+        Set<Household> detected = detectHouseholds(text);
+
+        if (detected.isEmpty()) return true;
+        return detected.contains(selected);
+    }
+
+    private Set<Household> detectHouseholds(String text) {
         Set<Household> detected = EnumSet.noneOf(Household.class);
         addWhenPresent(detected, Household.SINGLE, text, SINGLE_HOUSEHOLD_TERMS);
         addWhenPresent(detected, Household.WITH_CHILDREN, text, CHILD_HOUSEHOLD_TERMS);
         addWhenPresent(detected, Household.CAREGIVING, text, CARE_HOUSEHOLD_TERMS);
         addWhenPresent(detected, Household.OTHER, text, OTHER_HOUSEHOLD_TERMS);
-
-        if (detected.isEmpty()) return true;
-        return detected.contains(selected);
+        return detected;
     }
 
     private void addNumericAgeBands(Set<AgeBand> detected, String text) {
@@ -196,5 +237,8 @@ public class SupportProgramAudienceMatcher {
             for (Household household : values()) if (household.value.equals(value.trim())) return household;
             return null;
         }
+    }
+
+    public record AudienceFit(String status, String reason) {
     }
 }

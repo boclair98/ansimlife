@@ -15,6 +15,7 @@ const state = {
     loading: false,
     signedIn: false,
     currentUser: null,
+    profile: null,
     authMode: 'login',
     activeStep: 1,
     diagnosis: readStorage('ansimlife.diagnosis', null)
@@ -172,10 +173,9 @@ async function loadMeta() {
 }
 
 function recommendationBadge(item) {
-    if (!state.diagnosis) return '';
-    const regionMatches = !state.diagnosis.region || item.region === '전국' || String(item.region).includes(state.diagnosis.region);
-    const categoryMatches = normalizedCategory(item.category) === state.diagnosis.need;
-    if (regionMatches && categoryMatches) return `<span class="recommendation-chip">${escapeHtml(state.diagnosis.age)} 맞춤</span>`;
+    if (state.diagnosis && item.audienceStatus === 'MATCHED') {
+        return '<span class="recommendation-chip">내 조건 일치</span>';
+    }
     return '';
 }
 
@@ -279,12 +279,84 @@ function renderApplications() {
     }).join('') : '<div class="empty-inline">아직 관리 중인 혜택이 없어요. 혜택 카드에서 ‘신청 준비’를 눌러 시작해보세요.</div>';
 }
 
+function profileToDiagnosis(profile) {
+    if (!profile?.exists) return null;
+    return {
+        region: profile.region,
+        age: profile.ageGroup,
+        need: profile.need,
+        household: profile.household,
+        incomeRange: profile.incomeRange || ''
+    };
+}
+
+function renderMemberProfile() {
+    const card = byId('memberProfileCard');
+    if (!card) return;
+    const profile = state.profile;
+    card.hidden = !profile?.exists;
+    if (!profile?.exists) return;
+    byId('memberProfileSummary').textContent = `${profile.region} · ${profile.ageGroup} · ${profile.need} · ${profile.household}`;
+    byId('memberProfileUpdated').textContent = profile.updatedAt ? `${formatDateTime(profile.updatedAt)} 저장` : '저장된 맞춤 조건';
+}
+
+async function loadProfile() {
+    if (!state.signedIn) {
+        state.profile = null;
+        renderMemberProfile();
+        return null;
+    }
+    try {
+        const response = await fetch('/api/profile');
+        if (!response.ok) throw new Error();
+        state.profile = await response.json();
+        const savedDiagnosis = profileToDiagnosis(state.profile);
+        if (savedDiagnosis) {
+            state.diagnosis = savedDiagnosis;
+            writeStorage('ansimlife.diagnosis', state.diagnosis);
+            restoreDiagnosisFilters();
+            renderDiagnosisSummary();
+        }
+        renderMemberProfile();
+        return state.profile;
+    } catch {
+        state.profile = null;
+        renderMemberProfile();
+        return null;
+    }
+}
+
+async function saveProfile(profile) {
+    if (!state.signedIn) return true;
+    try {
+        const response = await fetch('/api/profile', {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                region: profile.region,
+                ageGroup: profile.age,
+                household: profile.household,
+                need: profile.need,
+                incomeRange: profile.incomeRange || ''
+            })
+        });
+        if (!response.ok) throw new Error(await errorMessage(response, '맞춤 조건을 저장하지 못했어요.'));
+        state.profile = await response.json();
+        renderMemberProfile();
+        return true;
+    } catch (error) {
+        showToast(error.message);
+        return false;
+    }
+}
+
 async function loadSession() {
     try {
         const response = await fetch('/api/auth/me');
         state.currentUser = await response.json();
         state.signedIn = state.currentUser.authenticated === true;
     } catch { state.currentUser = null; state.signedIn = false; }
+    await loadProfile();
     syncAuthUI();
 }
 
@@ -407,9 +479,12 @@ async function copyText(value, message = '문의 문장을 복사했어요.') {
 
 function possibilityFor(item) {
     if (!state.diagnosis) return { tone:'unknown', icon:'?', title:'추가 확인이 필요해요', copy:'공식 대상 조건을 읽고 직접 확인해주세요.' };
-    const region = item.region === '전국' || String(item.region).includes(state.diagnosis.region);
-    const category = normalizedCategory(item.category) === state.diagnosis.need;
-    if (region && category) return { tone:'candidate', icon:'✓', title:'우선 확인할 추천 후보예요', copy:'선택한 지역·관심 분야와 일치합니다. 연령·소득 등 세부 조건은 아래에서 확인해주세요.' };
+    if (item.audienceStatus === 'MATCHED') {
+        return { tone:'candidate', icon:'✓', title:'선택한 조건과 일치하는 후보예요', copy:item.audienceReason || '지원대상 문구에 선택한 조건이 포함돼 있어요. 소득·재산 등 세부 기준은 공식 안내에서 확인해주세요.' };
+    }
+    if (item.audienceStatus === 'GENERAL') {
+        return { tone:'unknown', icon:'?', title:'공식 기준을 한 번 더 확인해주세요', copy:item.audienceReason || '연령·가구 조건이 데이터에 명확하지 않아 공식 대상·선정기준을 직접 확인해야 해요.' };
+    }
     return { tone:'unknown', icon:'?', title:'세부 조건 확인이 필요해요', copy:'공식 대상·선정기준을 읽고 해당 여부를 확인해주세요.' };
 }
 
@@ -590,12 +665,18 @@ async function markOfficialOpened() {
 }
 
 function openDiagnosis() {
-    if (state.diagnosis) {
-        byId('diagnosisRegion').value = state.diagnosis.region || '';
-        byId('diagnosisAge').value = state.diagnosis.age || '';
-        document.querySelector(`input[name="need"][value="${CSS.escape(state.diagnosis.need || '')}"]`)?.click();
-        document.querySelector(`input[name="household"][value="${CSS.escape(state.diagnosis.household || '')}"]`)?.click();
+    const profile = profileToDiagnosis(state.profile) || state.diagnosis;
+    if (profile) {
+        byId('diagnosisRegion').value = profile.region || '';
+        byId('diagnosisAge').value = profile.age || '';
+        byId('diagnosisIncome').value = profile.incomeRange || '';
+        document.querySelector(`input[name="need"][value="${CSS.escape(profile.need || '')}"]`)?.click();
+        document.querySelector(`input[name="household"][value="${CSS.escape(profile.household || '')}"]`)?.click();
     }
+    byId('diagnosisDescription').textContent = state.signedIn
+        ? '저장된 조건을 고치면 다음 방문에도 같은 기준으로 추천해드려요.'
+        : '민감정보 없이 네 가지만 선택하면 됩니다. 로그인하면 조건을 저장할 수 있어요.';
+    byId('diagnosisSubmit').textContent = state.signedIn ? '조건 저장하고 추천 보기' : '내 혜택 후보 보기';
     openDialog(byId('diagnosisDialog'));
 }
 
@@ -620,10 +701,17 @@ function clearDiagnosis() {
     byId('diagnosisSummary').hidden = true;
 }
 
-function applyDiagnosis(event) {
+async function applyDiagnosis(event) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    state.diagnosis = { region:byId('diagnosisRegion').value, age:byId('diagnosisAge').value, need:form.get('need'), household:form.get('household') };
+    const nextDiagnosis = {
+        region:byId('diagnosisRegion').value,
+        age:byId('diagnosisAge').value,
+        need:form.get('need'),
+        household:form.get('household'),
+        incomeRange:byId('diagnosisIncome').value
+    };
+    state.diagnosis = nextDiagnosis;
     writeStorage('ansimlife.diagnosis', state.diagnosis);
     byId('region').value = state.diagnosis.region;
     byId('category').value = state.diagnosis.need;
@@ -631,8 +719,10 @@ function applyDiagnosis(event) {
     syncCategorySelection(state.diagnosis.need);
     renderDiagnosisSummary();
     byId('diagnosisDialog').close();
-    loadPrograms().then(() => byId('diagnosisSummary').scrollIntoView({ behavior:'smooth', block:'center' }));
-    showToast('맞춤 혜택 후보를 찾았어요.');
+    const saved = await saveProfile(nextDiagnosis);
+    await loadPrograms();
+    byId('diagnosisSummary').scrollIntoView({ behavior:'smooth', block:'center' });
+    showToast(state.signedIn && saved ? '맞춤 조건을 저장하고 후보를 찾았어요.' : '맞춤 혜택 후보를 찾았어요.');
 }
 
 function setAuthMode(mode) {
@@ -649,7 +739,11 @@ function setAuthMode(mode) {
 function openAuth(mode = 'login') {
     byId('authGuestView').hidden = state.signedIn;
     byId('authMemberView').hidden = !state.signedIn;
-    if (state.signedIn) { byId('memberName').textContent = `${state.currentUser.displayName}님`; byId('memberEmail').textContent = state.currentUser.email; }
+    if (state.signedIn) {
+        byId('memberName').textContent = `${state.currentUser.displayName}님`;
+        byId('memberEmail').textContent = state.currentUser.email;
+        renderMemberProfile();
+    }
     else setAuthMode(mode);
     openDialog(byId('authDialog'));
 }
@@ -666,6 +760,8 @@ async function submitAuth(event) {
         if (!response.ok) throw new Error(await errorMessage(response, '로그인하지 못했어요.'));
         state.currentUser = await response.json();
         state.signedIn = true;
+        await loadProfile();
+        if (!state.profile?.exists && state.diagnosis) await saveProfile(state.diagnosis);
         await loadDrafts();
         syncAuthUI(); byId('authDialog').close();
         showToast(state.authMode === 'register' ? '가입했어요. 이제 준비를 시작해보세요.' : '로그인했어요.');
@@ -708,6 +804,7 @@ byId('category').addEventListener('change', event => syncCategorySelection(event
 byId('programList').addEventListener('click', handleProgramAction);
 byId('savedList').addEventListener('click', handleProgramAction);
 byId('diagnosisForm').addEventListener('submit', applyDiagnosis);
+byId('profileEditButton').addEventListener('click', () => { byId('authDialog').close(); openDiagnosis(); });
 ['diagnosisOpen','diagnosisOpenSecondary','diagnosisEdit','mobileDiagnosis'].forEach(id => byId(id).addEventListener('click', openDiagnosis));
 document.querySelectorAll('[data-close-dialog]').forEach(button => button.addEventListener('click', () => byId(button.dataset.closeDialog).close()));
 
@@ -756,13 +853,18 @@ byId('accountButton').addEventListener('click', () => openAuth());
 byId('authClose').addEventListener('click', () => byId('authDialog').close());
 document.querySelectorAll('[data-auth-mode]').forEach(button => button.addEventListener('click', () => setAuthMode(button.dataset.authMode)));
 byId('authForm').addEventListener('submit', submitAuth);
-byId('logoutButton').addEventListener('click', async () => { await fetch('/api/auth/logout', { method:'POST' }); state.currentUser = null; state.signedIn = false; state.drafts = []; syncAuthUI(); renderApplications(); renderPrograms(state.visibleItems); byId('authDialog').close(); showToast('로그아웃했어요.'); });
+byId('logoutButton').addEventListener('click', async () => { await fetch('/api/auth/logout', { method:'POST' }); state.currentUser = null; state.signedIn = false; state.profile = null; syncAuthUI(); renderMemberProfile(); renderApplications(); renderPrograms(state.visibleItems); byId('authDialog').close(); showToast('로그아웃했어요.'); });
 
 [byId('diagnosisDialog'), byId('authDialog'), byId('benefitDetailDialog'), byId('preparationDialog')].forEach(bindDialogBackdrop);
 
-populateDiagnosisNeeds();
-renderCategoryControls();
-restoreDiagnosisFilters();
-renderDiagnosisSummary();
-syncCounts();
-Promise.all([loadPrograms(), loadMeta(), loadSession().then(loadDrafts)]);
+async function boot() {
+    populateDiagnosisNeeds();
+    renderCategoryControls();
+    restoreDiagnosisFilters();
+    renderDiagnosisSummary();
+    syncCounts();
+    await loadSession();
+    await Promise.all([loadPrograms(), loadMeta(), loadDrafts()]);
+}
+
+boot();

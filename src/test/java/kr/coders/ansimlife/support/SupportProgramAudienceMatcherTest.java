@@ -66,4 +66,26 @@ class SupportProgramAudienceMatcherTest {
                 "저소득층 에너지효율 개선", "기준중위소득 60% 이하 가구", "청년", "1인 가구"))
                 .isTrue();
     }
+
+    @Test
+    void explanationDistinguishesMatchedAndGeneralBenefits() {
+        assertThat(matcher.explain(
+                "서울시 청년 월세 지원",
+                "서울 거주 19세~39세 청년 1인 가구",
+                "청년", "1인 가구"))
+                .extracting(SupportProgramAudienceMatcher.AudienceFit::status)
+                .isEqualTo("MATCHED");
+        assertThat(matcher.explain(
+                "시민 주거상담",
+                "서울 시민 누구나",
+                "청년", "1인 가구"))
+                .extracting(SupportProgramAudienceMatcher.AudienceFit::status)
+                .isEqualTo("GENERAL");
+        assertThat(matcher.explain(
+                "독거노인 주거 안전 지원",
+                "만 65세 이상 독거노인",
+                "청년", "1인 가구"))
+                .extracting(SupportProgramAudienceMatcher.AudienceFit::status)
+                .isEqualTo("EXCLUDED");
+    }
 }

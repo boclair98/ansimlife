@@ -71,13 +71,16 @@ public class SupportProgramController {
             long offset = (long) normalizedPage * normalizedSize;
             int from = (int) Math.min(offset, matches.size());
             int to = Math.min(from + normalizedSize, matches.size());
-            List<ProgramResponse> items = matches.subList(from, to).stream().map(this::toResponse).toList();
+            List<ProgramResponse> items = matches.subList(from, to).stream()
+                    .map(program -> toResponse(program, normalizedAge, normalizedHousehold))
+                    .toList();
             return new SearchResponse(items, normalizedPage, normalizedSize, matches.size(), to < matches.size());
         }
 
         Page<SupportProgram> result = repository.search(normalizedRegion, normalizedCategory, normalizedKeyword,
                 PageRequest.of(normalizedPage, normalizedSize));
-        return new SearchResponse(result.getContent().stream().map(this::toResponse).toList(), result.getNumber(), result.getSize(),
+        return new SearchResponse(result.getContent().stream()
+                .map(program -> toResponse(program, normalizedAge, normalizedHousehold)).toList(), result.getNumber(), result.getSize(),
                 result.getTotalElements(), result.hasNext());
     }
 
@@ -93,7 +96,7 @@ public class SupportProgramController {
     @GetMapping("/{id}")
     public ProgramResponse get(@PathVariable Long id) {
         return toResponse(repository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "지원 정보를 찾을 수 없습니다.")));
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "지원 정보를 찾을 수 없습니다.")), "", "");
     }
 
     @GetMapping("/{id}/detail")
@@ -110,12 +113,13 @@ public class SupportProgramController {
                 detail.sourceUpdatedAt(), detail.sourceLive(), connectorRegistry.describe(program));
     }
 
-    private ProgramResponse toResponse(SupportProgram program) {
+    private ProgramResponse toResponse(SupportProgram program, String ageGroup, String household) {
+        SupportProgramAudienceMatcher.AudienceFit fit = audienceMatcher.explain(program, ageGroup, household);
         return new ProgramResponse(
                 program.getId(), program.getExternalId(), program.getTitle(), program.getRegion(),
                 program.getCategory(), program.getTarget(), program.getSummary(), program.getBenefit(),
                 program.getApplyUrl(), program.getDeadline(), program.isUrgent(),
-                connectorRegistry.describe(program));
+                connectorRegistry.describe(program), fit.status(), fit.reason());
     }
 
     public record ProgramResponse(
@@ -130,7 +134,9 @@ public class SupportProgramController {
             String applyUrl,
             String deadline,
             boolean urgent,
-            ApplicationChannel application) {}
+            ApplicationChannel application,
+            String audienceStatus,
+            String audienceReason) {}
     public record ProgramDetailResponse(
             Long id,
             String externalId,
