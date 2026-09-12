@@ -71,6 +71,12 @@ function formatDateTime(value) {
     if (!value) return '';
     return new Intl.DateTimeFormat('ko-KR', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }).format(new Date(value));
 }
+function formatFreshness(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '동기화 시각 확인 필요';
+    const formatted = new Intl.DateTimeFormat('ko-KR', { timeZone:'Asia/Seoul', month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' }).format(date);
+    return `마지막 동기화 ${formatted}`;
+}
 function formatDate(value) {
     if (!value) return '';
     return new Intl.DateTimeFormat('ko-KR', { year:'numeric', month:'long', day:'numeric' }).format(new Date(`${value}T00:00:00`));
@@ -178,6 +184,9 @@ async function loadMeta() {
         const labels = { READY:'최신 정보 반영 완료', SYNCING:'전체 혜택 동기화 중', PARTIAL:'혜택 추가 반영 중', WAITING:'동기화 준비 중', DISABLED:'데이터 연결 필요', ERROR:'저장된 최신 정보 제공 중' };
         byId('syncStatus').textContent = labels[meta.syncStatus] ?? '공식정보 매일 최신화';
         byId('syncDot').classList.toggle('spinning', ['SYNCING','PARTIAL'].includes(meta.syncStatus));
+        byId('syncFreshness').textContent = meta.lastSyncedAt
+            ? formatFreshness(meta.lastSyncedAt)
+            : meta.syncStatus === 'DISABLED' ? '공공데이터 키 연결 후 동기화' : '아직 동기화 기록 없음';
         renderCategoryControls(counts);
         if (['SYNCING','PARTIAL'].includes(meta.syncStatus)) setTimeout(loadMeta, 6000);
     } catch {
