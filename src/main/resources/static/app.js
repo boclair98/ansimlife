@@ -20,7 +20,8 @@ const state = {
     authMode: 'login',
     activeStep: 1,
     diagnosis: readStorage('ansimlife.diagnosis', null),
-    quickFilter: 'all'
+    quickFilter: 'all',
+    sortOrder: 'recommended'
 };
 
 const categories = [
@@ -216,12 +217,79 @@ function matchesQuickFilter(item) {
     return true;
 }
 
+function deadlineTimestamp(value) {
+    const match = String(value ?? '').match(/(20\d{2})\s*[./-]\s*(\d{1,2})(?:\s*[./-]\s*(\d{1,2}))?/);
+    if (!match) return Number.POSITIVE_INFINITY;
+    return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3] || 1));
+}
+
+function recommendationScore(item) {
+    const channel = applicationChannel(item);
+    return (item.audienceStatus === 'MATCHED' ? 8 : 0)
+        + (item.urgent ? 4 : 0)
+        + (channel.directAvailable || channel.officialUrl || item.applyUrl ? 2 : 0);
+}
+
+function sortPrograms(items) {
+    return [...items].sort((left, right) => {
+        if (state.sortOrder === 'deadline') {
+            const deadlineDifference = deadlineTimestamp(left.deadline) - deadlineTimestamp(right.deadline);
+            if (deadlineDifference !== 0) return deadlineDifference;
+        }
+        if (state.sortOrder === 'online') {
+            const leftOnline = applicationChannel(left).directAvailable || applicationChannel(left).officialUrl || left.applyUrl ? 1 : 0;
+            const rightOnline = applicationChannel(right).directAvailable || applicationChannel(right).officialUrl || right.applyUrl ? 1 : 0;
+            if (leftOnline !== rightOnline) return rightOnline - leftOnline;
+        }
+        const scoreDifference = recommendationScore(right) - recommendationScore(left);
+        if (scoreDifference !== 0) return scoreDifference;
+        return Number(left.id || 0) - Number(right.id || 0);
+    });
+}
+
+function currentCriteria() {
+    const criteria = [];
+    const region = byId('region')?.value;
+    const category = byId('category')?.value;
+    const keyword = byId('keyword')?.value.trim();
+    if (region) criteria.push(`지역 · ${region}`);
+    if (category) criteria.push(`분야 · ${normalizedCategory(category)}`);
+    if (keyword) criteria.push(`검색 · ${keyword}`);
+    if (state.diagnosis) {
+        if (state.diagnosis.age) criteria.push(`연령 · ${state.diagnosis.age}`);
+        if (state.diagnosis.household) criteria.push(`가구 · ${state.diagnosis.household}`);
+    }
+    return criteria;
+}
+
+function renderResultOverview() {
+    const criteria = currentCriteria();
+    const headline = byId('resultHeadline');
+    const copy = byId('resultOverviewCopy');
+    const chipBox = byId('activeCriteria');
+    if (!headline || !copy || !chipBox) return;
+    if (state.diagnosis) {
+        headline.textContent = `${state.diagnosis.age} · ${state.diagnosis.household} 조건으로 좁혔어요`;
+        copy.textContent = '명시적으로 맞는 후보를 먼저 보고, 나머지는 공식 기준을 추가 확인해보세요.';
+    } else if (criteria.length) {
+        headline.textContent = '선택한 조건으로 혜택을 모았어요';
+        copy.textContent = '검색어와 분야를 바꿔가며 더 넓게 탐색하거나, 상세 화면에서 공식 기준을 확인하세요.';
+    } else {
+        headline.textContent = '전체 공공혜택에서 시작해요';
+        copy.textContent = '맞춤진단을 하면 나에게 가까운 혜택부터 우선해서 보여드려요.';
+    }
+    chipBox.innerHTML = criteria.length
+        ? criteria.map(value => `<span>${escapeHtml(value)}</span>`).join('')
+        : '<span class="criteria-empty">아직 선택한 조건이 없어요</span>';
+}
+
 function syncQuickFilterButtons() {
     document.querySelectorAll('[data-result-filter]').forEach(button => button.classList.toggle('active', button.dataset.resultFilter === state.quickFilter));
 }
 
 function renderPrograms(items) {
-    const visibleItems = items.filter(matchesQuickFilter);
+    const visibleItems = sortPrograms(items.filter(matchesQuickFilter));
+    renderResultOverview();
     byId('count').textContent = state.quickFilter === 'all'
         ? `${formatNumber(state.totalResults)}개 혜택`
         : `${formatNumber(visibleItems.length)}개 표시 · 전체 ${formatNumber(state.totalResults)}개`;
@@ -828,6 +896,8 @@ function restoreDiagnosisFilters() {
 function clearDiagnosis() {
     state.diagnosis = null;
     state.quickFilter = 'all';
+    state.sortOrder = 'recommended';
+    if (byId('sortPrograms')) byId('sortPrograms').value = state.sortOrder;
     syncQuickFilterButtons();
     try { localStorage.removeItem('ansimlife.diagnosis'); } catch { /* Keep manual search available without storage. */ }
     byId('diagnosisSummary').hidden = true;
@@ -941,6 +1011,19 @@ byId('quickFilters').addEventListener('click', event => {
     const button = event.target.closest('[data-result-filter]');
     if (!button) return;
     setQuickFilter(button.dataset.resultFilter);
+});
+byId('sortPrograms').addEventListener('change', event => {
+    state.sortOrder = event.target.value;
+    renderPrograms(state.visibleItems);
+});
+byId('resetSearch').addEventListener('click', () => {
+    byId('keyword').value = '';
+    byId('region').value = '';
+    byId('category').value = '';
+    clearDiagnosis();
+    syncCategorySelection('');
+    loadPrograms();
+    showToast('탐색 조건을 초기화했어요.');
 });
 byId('programList').addEventListener('keydown', event => {
     const row = event.target.closest('.program-list-item[data-action="detail"]');
