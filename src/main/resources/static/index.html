@@ -6,8 +6,8 @@
     <meta name="description" content="전국의 정부·공공기관 혜택을 찾고, 자격·서류 확인부터 공식 신청처와 진행상태까지 관리하는 혜택 내비게이터입니다.">
     <meta name="theme-color" content="#ff6542">
     <title>안심생활 | 혜택 신청 내비게이터</title>
-    <link rel="stylesheet" href="/app.css?v=32">
-    <script defer src="/app.js?v=32"></script>
+    <link rel="stylesheet" href="/app.css?v=33">
+    <script defer src="/app.js?v=33"></script>
 </head>
 <body>
 <div class="site-shell">
@@ -15,7 +15,7 @@
         <div class="container header-inner">
             <a class="brand" href="#top" aria-label="안심생활 홈"><span class="brand-mark" aria-hidden="true">안</span><span>안심생활</span></a>
             <nav class="desktop-nav" aria-label="주요 메뉴"><a href="#discover">혜택 찾기</a><a href="#journey">이용 방법</a><span class="live-source"><i></i>공공데이터 매일 반영</span></nav>
-            <div class="header-actions"><button id="savedToggle" class="ghost-button header-button" type="button">관심 <b id="savedCount">0</b></button><button id="applicationToggle" class="dark-button header-button" type="button">내 준비 <b id="applicationCount">0</b></button><button id="accountButton" class="ghost-button header-button account-button" type="button">로그인</button></div>
+            <div class="header-actions"><button id="savedToggle" class="ghost-button header-button" type="button">관심 <b id="savedCount">0</b></button><button id="compareToggle" class="ghost-button header-button" type="button">비교 <b id="comparisonCount">0</b></button><button id="applicationToggle" class="dark-button header-button" type="button">내 준비 <b id="applicationCount">0</b></button><button id="accountButton" class="ghost-button header-button account-button" type="button">로그인</button></div>
         </div>
     </header>
 
@@ -35,7 +35,7 @@
             </aside>
         </section>
 
-        <section class="trust-strip container" aria-label="서비스 원칙"><div><span class="trust-icon coral">✓</span><p><small>현재 확인 가능</small><strong id="storedBenefitCount">혜택 불러오는 중</strong></p></div><div><span class="trust-icon blue">↗</span><p><small>공식 접수 연결</small><strong>정확한 기관 신청처 안내</strong></p></div><div><span id="syncDot" class="trust-icon green">↻</span><p><small>데이터 상태</small><strong id="syncStatus">동기화 상태 확인 중</strong></p></div></section>
+        <section class="trust-strip container" aria-label="서비스 원칙"><div><span class="trust-icon coral">✓</span><p><small>현재 확인 가능</small><strong id="storedBenefitCount">혜택 불러오는 중</strong></p></div><div><span class="trust-icon blue">↗</span><p><small>공식 접수 연결</small><strong>정확한 기관 신청처 안내</strong></p></div><div><span id="syncDot" class="trust-icon green">↻</span><p><small>데이터 상태</small><strong id="syncStatus">동기화 상태 확인 중</strong><small id="syncUpdatedAt" class="trust-updated-at">공식 기준일 확인 중</small></p></div></section>
 
         <section id="journey" class="journey-section container">
             <div class="section-title-row"><div><span class="section-label">HOW IT WORKS</span><h2>검색부터 결과까지 끊기지 않게</h2></div><p>안심생활은 정부기관을 사칭하거나 접수를 대신했다고 표시하지 않습니다. 대신 신청을 끝내는 데 필요한 과정을 연결합니다.</p></div>
@@ -54,7 +54,7 @@
         </section>
 
         <section class="results-layout container">
-            <div class="result-panel"><div class="result-heading"><div><span class="section-label">BENEFIT LIST</span><h2 id="programsHeading">조건에 맞는 혜택</h2><p id="resultSubcopy">카드에서 핵심 정보를 먼저 확인하고, 자세한 기준은 상세 화면에서 확인하세요.</p></div><span id="count" aria-live="polite">불러오는 중…</span></div><div class="result-legend" aria-label="혜택 표시 기준"><span class="legend-match"><i>✓</i>내 조건과 명시적으로 일치</span><span class="legend-general"><i>i</i>공식 기준 추가 확인</span></div><div id="programList" class="program-grid" aria-live="polite" aria-busy="false"></div><button id="loadMore" class="load-more" type="button" hidden>혜택 더 보기 <span>↓</span></button></div>
+            <div class="result-panel"><div class="result-heading"><div><span class="section-label">BENEFIT LIST</span><h2 id="programsHeading">조건에 맞는 혜택</h2><p id="resultSubcopy">카드에서 핵심 정보를 먼저 확인하고, 자세한 기준은 상세 화면에서 확인하세요.</p></div><span id="count" aria-live="polite">불러오는 중…</span></div><div class="result-legend" aria-label="혜택 표시 기준"><span class="legend-match"><i>✓</i>내 조건과 명시적으로 일치</span><span class="legend-general"><i>i</i>공식 기준 추가 확인</span><span class="legend-source"><i>↻</i><span id="resultSourceStatus">공식 데이터 기준</span></span></div><div id="quickFilters" class="quick-filters" aria-label="빠른 혜택 필터"><span>빠른 보기</span><button class="active" type="button" data-result-filter="all">전체</button><button type="button" data-result-filter="urgent">마감 임박</button><button type="button" data-result-filter="online">온라인 안내</button><button type="button" data-result-filter="matched">내 조건 일치</button></div><div id="programList" class="program-grid" aria-live="polite" aria-busy="false"></div><button id="loadMore" class="load-more" type="button" hidden>혜택 더 보기 <span>↓</span></button></div>
             <aside class="my-panel"><span class="section-label">MY ANSIMLIFE</span><h2>찾은 혜택을<br>놓치지 않게 관리해요.</h2><p>관심 혜택과 준비 체크, 공식 접수 후 내가 기록한 진행상태를 한곳에서 확인합니다.</p><div class="my-panel-counts"><div><span>준비 중</span><strong id="asideApplicationCount">0</strong></div><div><span>관심</span><strong id="asideSavedCount">0</strong></div></div><button id="asideApplications" class="dark-button full-button" type="button">내 혜택 이어보기</button><button id="asideSaved" class="ghost-button full-button" type="button">관심 혜택 보기</button><ul><li>신청용 개인정보를 받지 않아요</li><li>공식 접수처와 상세 기준을 보여줘요</li><li>접수·결과 상태는 내가 기록해요</li></ul></aside>
         </section>
 
@@ -76,7 +76,9 @@
             <section class="step-pane" data-pane="3"><header class="pane-heading"><span>STEP 3</span><h3>공식 신청 이후 상태를 기록해두세요</h3><p>접수번호나 다음 확인일을 선택해서 적을 수 있으며, 입력하지 않아도 됩니다.</p></header><div id="institutionReceipt" class="institution-receipt" hidden><i>✓</i><div><span>기관 확인 완료</span><strong id="institutionReceiptNumber"></strong><p id="institutionReceiptAgency"></p></div></div><form id="journeyForm" class="journey-form"><label class="field full"><span>현재 진행상태</span><select id="journeyStatus"><option value="PREPARING">준비 중</option><option value="OFFICIAL_SITE_OPENED">공식 신청처 확인</option><option value="USER_REPORTED_SUBMITTED">공식 사이트에서 신청함</option><option value="SUPPLEMENT_REQUESTED">보완 요청 받음</option><option value="RESULT_WAITING">결과 기다리는 중</option><option value="APPROVED">선정됨</option><option value="REJECTED">미선정</option></select></label><label class="field full"><span>접수번호 또는 메모 <small>선택</small></span><input id="userReceiptMemo" maxlength="120" placeholder="예: 정부24 접수번호 또는 방문일"></label><label class="field full"><span>다음 확인일 <small>선택</small></span><input id="nextActionDate" type="date"></label><button id="saveJourney" class="dark-button full-button" type="submit">내 진행상태 저장</button></form><div class="status-disclosure"><strong>‘신청함’은 내가 남긴 기록입니다.</strong><p>안심생활이 기관 접수 여부를 대신 확인하거나 신청 완료로 보증하지 않습니다.</p></div></section>
         </div><footer class="preparation-actions"><button id="stepBack" class="ghost-button" type="button" hidden>이전</button><span></span><button id="loginToSave" class="ghost-button" type="button" hidden>로그인하고 저장</button><button id="saveDraft" class="ghost-button" type="button">체크 저장</button><button id="stepNext" class="primary-button" type="button">다음 단계</button><a id="officialApply" class="primary-button" href="#" target="_blank" rel="noopener noreferrer" hidden>공식 신청처 열기</a></footer></section></div></dialog>
 
+<dialog id="compareDialog" class="modal compare-dialog" aria-labelledby="compareTitle"><div class="compare-shell"><header class="compare-head"><div><span class="section-label">COMPARE</span><h2 id="compareTitle">혜택을 한눈에 비교해요</h2><p id="compareDescription">최대 세 개까지 담아 지원대상·혜택·신청방식을 나란히 확인할 수 있어요.</p></div><button id="compareClose" class="icon-button" type="button" aria-label="비교 닫기">×</button></header><div id="compareTable" class="compare-table" aria-live="polite"></div><footer class="compare-actions"><button id="compareClear" class="ghost-button" type="button">비교 비우기</button><button id="compareStartPreparation" class="primary-button" type="button">첫 번째 혜택 준비하기</button></footer></div></dialog>
+
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
-<nav class="mobile-nav" aria-label="빠른 메뉴"><a class="active" href="#top"><i>⌂</i><span>홈</span></a><a href="#discover"><i>⌕</i><span>찾기</span></a><button id="mobileDiagnosis" type="button"><i>✓</i><span>맞춤진단</span></button><button id="mobileApplications" type="button"><i>◷</i><span>내 혜택 <b id="mobileApplicationCount">0</b></span></button></nav>
+<nav class="mobile-nav" aria-label="빠른 메뉴"><a class="active" href="#top"><i>⌂</i><span>홈</span></a><a href="#discover"><i>⌕</i><span>찾기</span></a><button id="mobileDiagnosis" type="button"><i>✓</i><span>맞춤진단</span></button><button id="mobileCompare" type="button"><i>⇄</i><span>비교 <b id="mobileComparisonCount">0</b></span></button><button id="mobileApplications" type="button"><i>◷</i><span>내 혜택 <b id="mobileApplicationCount">0</b></span></button></nav>
 </body>
 </html>
