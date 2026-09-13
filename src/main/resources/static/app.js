@@ -217,10 +217,19 @@ function matchesQuickFilter(item) {
     return true;
 }
 
-function deadlineTimestamp(value) {
-    const match = String(value ?? '').match(/(20\d{2})\s*[./-]\s*(\d{1,2})(?:\s*[./-]\s*(\d{1,2}))?/);
-    if (!match) return Number.POSITIVE_INFINITY;
-    return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3] || 1));
+function deadlineInfo(value) {
+    const text = String(value ?? '');
+    if (/상시|수시|연중/.test(text)) return { bucket: 1, timestamp: Number.POSITIVE_INFINITY };
+    const matches = [...text.matchAll(/(20\d{2})\s*[./-]\s*(\d{1,2})(?:\s*[./-]\s*(\d{1,2}))?/g)]
+        .map(match => Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3] || 1)));
+    if (!matches.length) return { bucket: 1, timestamp: Number.POSITIVE_INFINITY };
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayTimestamp = today.getTime();
+    const upcoming = matches.filter(timestamp => timestamp >= todayTimestamp);
+    return upcoming.length
+        ? { bucket: 0, timestamp: Math.min(...upcoming) }
+        : { bucket: 2, timestamp: Math.max(...matches) };
 }
 
 function recommendationScore(item) {
@@ -233,7 +242,10 @@ function recommendationScore(item) {
 function sortPrograms(items) {
     return [...items].sort((left, right) => {
         if (state.sortOrder === 'deadline') {
-            const deadlineDifference = deadlineTimestamp(left.deadline) - deadlineTimestamp(right.deadline);
+            const leftDeadline = deadlineInfo(left.deadline);
+            const rightDeadline = deadlineInfo(right.deadline);
+            if (leftDeadline.bucket !== rightDeadline.bucket) return leftDeadline.bucket - rightDeadline.bucket;
+            const deadlineDifference = leftDeadline.timestamp - rightDeadline.timestamp;
             if (deadlineDifference !== 0) return deadlineDifference;
         }
         if (state.sortOrder === 'online') {
