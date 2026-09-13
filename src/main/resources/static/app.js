@@ -4,8 +4,8 @@ const state = {
     items: [],
     visibleItems: [],
     drafts: [],
-    savedIds: new Set(readStorage('ansimlife.saved', [])),
-    comparisonIds: new Set(readStorage('ansimlife.compare', [])),
+    savedIds: readIdSet('ansimlife.saved'),
+    comparisonIds: readIdSet('ansimlife.compare'),
     detailCache: new Map(),
     activeProgram: null,
     activeDetail: null,
@@ -21,7 +21,8 @@ const state = {
     activeStep: 1,
     diagnosis: readStorage('ansimlife.diagnosis', null),
     quickFilter: 'all',
-    sortOrder: 'recommended'
+    sortOrder: 'recommended',
+    sharedComparisonPending: false
 };
 
 const categories = [
@@ -58,6 +59,28 @@ function readStorage(key, fallback) {
 function writeStorage(key, value) {
     try { localStorage.setItem(key, JSON.stringify(value)); }
     catch { /* Private browsing or disabled storage: keep the current session working. */ }
+}
+
+function readIdSet(key) {
+    const values = readStorage(key, []);
+    return new Set((Array.isArray(values) ? values : [])
+        .map(Number)
+        .filter(value => Number.isInteger(value) && value > 0));
+}
+
+function restoreSharedComparison() {
+    const raw = new URLSearchParams(window.location.search).get('compare');
+    if (!raw) return;
+    const ids = raw.split(',')
+        .map(value => value.trim())
+        .filter(value => /^\d+$/.test(value))
+        .map(Number)
+        .filter(value => Number.isInteger(value) && value > 0)
+        .slice(0, 3);
+    if (!ids.length) return;
+    state.comparisonIds = new Set(ids);
+    state.sharedComparisonPending = true;
+    writeStorage('ansimlife.compare', ids);
 }
 
 function escapeHtml(value) {
@@ -361,6 +384,7 @@ function renderComparison() {
     const table = byId('compareTable');
     const items = selectedComparisonItems();
     byId('compareStartPreparation').disabled = !items.length;
+    byId('compareShare').disabled = !items.length;
     byId('compareClear').disabled = !state.comparisonIds.size;
     if (!items.length) {
         table.innerHTML = '<div class="compare-empty"><span>＋</span><h3>비교할 혜택을 담아보세요</h3><p>혜택 목록에서 ‘＋ 비교’를 누르면 지원대상과 신청방식을 한 화면에서 비교할 수 있어요.</p></div>';
@@ -377,16 +401,42 @@ function renderComparison() {
     table.innerHTML = `<div class="compare-columns"><div class="compare-label compare-label-head">비교 항목</div>${items.map(item => `<div class="compare-program-head"><span>${escapeHtml(normalizedCategory(item.category))}</span><strong>${escapeHtml(item.title)}</strong><button type="button" class="compare-remove" data-compare-action="remove" data-id="${item.id}">비교에서 빼기</button></div>`).join('')}</div>${rows.map(([label, getter]) => `<div class="compare-row"><div class="compare-label">${escapeHtml(label)}</div>${items.map(item => `<div class="compare-cell">${comparisonValue(getter(item))}</div>`).join('')}</div>`).join('')}<div class="compare-row compare-row-action"><div class="compare-label">다음 행동</div>${items.map(item => `<div class="compare-cell"><button type="button" class="ghost-button compare-detail" data-compare-action="detail" data-id="${item.id}">상세 보기 <span>→</span></button></div>`).join('')}</div>`;
 }
 
+async function shareComparison() {
+    const items = selectedComparisonItems();
+    if (!items.length) return;
+    const url = new URL(window.location.href);
+    url.search = '';
+    url.searchParams.set('compare', items.map(item => item.id).join(','));
+    url.hash = 'discover';
+    const shareData = {
+        title: '안심생활 혜택 비교',
+        text: '안심생활에서 비교한 공공혜택을 확인해보세요.',
+        url: url.toString()
+    };
+    try {
+        if (typeof navigator.share === 'function') await navigator.share(shareData);
+        else await copyText(shareData.url, '비교 링크를 복사했어요.');
+    } catch (error) {
+        if (error?.name !== 'AbortError') await copyText(shareData.url, '비교 링크를 복사했어요.');
+    }
+}
+
 async function openComparison() {
     if (!state.comparisonIds.size) {
         showToast('혜택 목록에서 비교할 항목을 먼저 담아보세요.');
-        return;
+        return 0;
     }
     openDialog(byId('compareDialog'));
     byId('compareTable').innerHTML = '<div class="compare-loading" role="status"><i></i><span>비교 정보를 준비하고 있어요</span></div>';
     const missingIds = [...state.comparisonIds].filter(id => !state.items.some(item => item.id === Number(id)));
-    await Promise.all(missingIds.map(loadProgramById));
+    const loaded = await Promise.all(missingIds.map(loadProgramById));
+    loaded.forEach((item, index) => {
+        if (!item) state.comparisonIds.delete(Number(missingIds[index]));
+    });
+    writeStorage('ansimlife.compare', [...state.comparisonIds]);
+    syncCounts();
     renderComparison();
+    return selectedComparisonItems().length;
 }
 
 function toggleComparison(id) {
@@ -683,8 +733,73 @@ function callScript(detail) {
 }
 
 async function copyText(value, message = '문의 문장을 복사했어요.') {
-    try { await navigator.clipboard.writeText(value); showToast(message); }
-    catch { showToast('복사하지 못했어요. 문장을 길게 눌러 복사해주세요.'); }
+    try {
+        let copied = false;
+        if (navigator.clipboard?.writeText) {
+            try {
+                await navigator.clipboard.writeText(value);
+                copied = true;
+            } catch { /* Fall back to the selection-based copy below. */ }
+        }
+        if (!copied) {
+            const textarea = document.createElement('textarea');
+            textarea.value = value;
+            textarea.setAttribute('readonly', '');
+            textarea.style.position = 'fixed';
+            textarea.style.top = '-9999px';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            copied = document.execCommand('copy');
+            textarea.remove();
+            if (!copied) throw new Error('copy failed');
+        }
+        showToast(message);
+    } catch { showToast('복사하지 못했어요. 문장을 길게 눌러 복사해주세요.'); }
+}
+
+function openFeedback() {
+    if (!state.activeDetail) return;
+    byId('feedbackForm').reset();
+    byId('feedbackProgramTitle').textContent = state.activeDetail.title;
+    byId('feedbackError').textContent = '';
+    byId('feedbackSubmit').disabled = false;
+    byId('benefitDetailDialog').close();
+    openDialog(byId('feedbackDialog'));
+}
+
+async function submitFeedback(event) {
+    event.preventDefault();
+    const type = document.querySelector('input[name="feedbackType"]:checked')?.value;
+    const message = byId('feedbackMessage').value.trim();
+    const error = byId('feedbackError');
+    if (!type) {
+        error.textContent = '확인할 항목을 하나 선택해주세요.';
+        return;
+    }
+    if (message.length < 5) {
+        error.textContent = '확인한 내용을 5자 이상 적어주세요.';
+        byId('feedbackMessage').focus();
+        return;
+    }
+    const button = byId('feedbackSubmit');
+    button.disabled = true;
+    error.textContent = '';
+    try {
+        const response = await fetch('/api/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ programId: state.activeDetail?.id, type, message })
+        });
+        if (!response.ok) throw new Error(await errorMessage(response, '제보를 보내지 못했어요.'));
+        byId('feedbackDialog').close();
+        showToast('제보가 접수됐어요. 확인 후 혜택 정보를 점검할게요.');
+    } catch (submissionError) {
+        error.textContent = submissionError.message || '잠시 후 다시 시도해주세요.';
+    } finally {
+        button.disabled = false;
+    }
 }
 
 function possibilityFor(item) {
@@ -1055,10 +1170,13 @@ byId('benefitDetailClose').addEventListener('click', () => byId('benefitDetailDi
 byId('benefitDetailPrepare').addEventListener('click', () => { const item = state.activeDetail; byId('benefitDetailDialog').close(); if (item) openPreparation(item); });
 byId('benefitDetailSave').addEventListener('click', () => state.activeDetail && toggleSaved(state.activeDetail.id));
 byId('copyCallScript').addEventListener('click', () => state.activeDetail && copyText(callScript(state.activeDetail)));
+byId('benefitDetailFeedback').addEventListener('click', openFeedback);
+byId('feedbackForm').addEventListener('submit', submitFeedback);
 
 byId('compareToggle').addEventListener('click', openComparison);
 byId('mobileCompare').addEventListener('click', openComparison);
 byId('compareClose').addEventListener('click', () => byId('compareDialog').close());
+byId('compareShare').addEventListener('click', shareComparison);
 byId('compareClear').addEventListener('click', () => {
     state.comparisonIds.clear();
     writeStorage('ansimlife.compare', []);
@@ -1127,9 +1245,10 @@ document.querySelectorAll('[data-auth-mode]').forEach(button => button.addEventL
 byId('authForm').addEventListener('submit', submitAuth);
 byId('logoutButton').addEventListener('click', async () => { await fetch('/api/auth/logout', { method:'POST' }); state.currentUser = null; state.signedIn = false; state.profile = null; syncAuthUI(); renderMemberProfile(); renderApplications(); renderPrograms(state.visibleItems); byId('authDialog').close(); showToast('로그아웃했어요.'); });
 
-[byId('diagnosisDialog'), byId('authDialog'), byId('benefitDetailDialog'), byId('preparationDialog'), byId('compareDialog')].forEach(bindDialogBackdrop);
+[byId('diagnosisDialog'), byId('authDialog'), byId('benefitDetailDialog'), byId('preparationDialog'), byId('compareDialog'), byId('feedbackDialog')].forEach(bindDialogBackdrop);
 
 async function boot() {
+    restoreSharedComparison();
     populateDiagnosisNeeds();
     renderCategoryControls();
     restoreDiagnosisFilters();
@@ -1137,6 +1256,11 @@ async function boot() {
     syncCounts();
     await loadSession();
     await Promise.all([loadPrograms(), loadMeta(), loadDrafts()]);
+    if (state.sharedComparisonPending) {
+        state.sharedComparisonPending = false;
+        const sharedCount = await openComparison();
+        if (sharedCount) showToast('공유한 비교 목록을 불러왔어요.');
+    }
 }
 
 boot();
