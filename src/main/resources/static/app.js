@@ -73,6 +73,12 @@ function formatDateTime(value) {
     if (!value) return '';
     return new Intl.DateTimeFormat('ko-KR', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }).format(new Date(value));
 }
+function formatFreshness(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '동기화 시각 확인 필요';
+    const formatted = new Intl.DateTimeFormat('ko-KR', { timeZone:'Asia/Seoul', month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' }).format(date);
+    return `마지막 동기화 ${formatted}`;
+}
 function formatDate(value) {
     if (!value) return '';
     return new Intl.DateTimeFormat('ko-KR', { year:'numeric', month:'long', day:'numeric' }).format(new Date(`${value}T00:00:00`));
@@ -181,7 +187,7 @@ async function loadMeta() {
         byId('heroCategoryCount').textContent = `${Math.max(Object.keys(counts).length, categories.length)}개 분야`;
         const labels = { READY:'최신 정보 반영 완료', SYNCING:'전체 혜택 동기화 중', PARTIAL:'혜택 추가 반영 중', WAITING:'동기화 준비 중', DISABLED:'데이터 연결 필요', ERROR:'저장된 최신 정보 제공 중' };
         byId('syncStatus').textContent = labels[meta.syncStatus] ?? '공식정보 매일 최신화';
-        byId('syncUpdatedAt').textContent = meta.lastSyncedAt ? `${formatDateTime(meta.lastSyncedAt)} 기준` : '공식 기준일 확인 중';
+        byId('syncUpdatedAt').textContent = meta.lastSyncedAt ? formatFreshness(meta.lastSyncedAt) : '공식 기준일 확인 중';
         byId('resultSourceStatus').textContent = meta.lastSyncedAt ? `공식 데이터 · ${formatDateTime(meta.lastSyncedAt)}` : '공식 데이터 기준';
         byId('syncDot').classList.toggle('spinning', ['SYNCING','PARTIAL'].includes(meta.syncStatus));
         renderCategoryControls(counts);
