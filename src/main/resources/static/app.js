@@ -135,6 +135,37 @@ function applicationChannel(item) {
     };
 }
 
+function deadlineMeta(item) {
+    const text = String(item?.deadline ?? '').trim();
+    if (item?.deadlineStatus && item?.deadlineLabel) {
+        return { status:item.deadlineStatus, label:item.deadlineLabel, expired:item.expired === true, urgent:item.urgent === true };
+    }
+    if (!text || text === '-' || /기관 공고 확인|모집공고 확인|접수기관 별 상이/.test(text)) {
+        return { status:'UNKNOWN', label:'모집기간 확인 필요', expired:false, urgent:false };
+    }
+    if (/상시|수시|연중|언제든/.test(text)) return { status:'OPEN', label:'상시 신청', expired:false, urgent:false };
+    const dates = [...text.matchAll(/(20\d{2})\s*[./-]\s*(\d{1,2})\s*[./-]\s*(\d{1,2})/g)]
+        .map(match => new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])))
+        .filter(date => !Number.isNaN(date.getTime()));
+    if (!dates.length) return { status:'UNKNOWN', label:'모집기간 확인 필요', expired:false, urgent:false };
+    const last = dates.sort((left,right) => left - right).at(-1);
+    const today = new Date(); today.setHours(0,0,0,0);
+    if (last < today) return { status:'EXPIRED', label:'모집 종료', expired:true, urgent:false };
+    const days = Math.ceil((last - today) / 86400000);
+    return days <= 30
+        ? { status:'URGENT', label:`마감 임박 · ${days}일 남음`, expired:false, urgent:true }
+        : { status:'OPEN', label:`마감 ${last.getFullYear()}.${last.getMonth()+1}.${last.getDate()}`, expired:false, urgent:false };
+}
+
+function actionFor(item, draft) {
+    const channel = applicationChannel(item);
+    const deadline = deadlineMeta(item);
+    if (deadline.expired) return { label:'공식 안내 확인', action:'detail', tone:'muted', hint:'모집기간이 끝났어요. 다음 공고를 확인하세요.' };
+    if (channel.mode === 'NO_APPLICATION') return { label:'이용 방법 확인', action:'detail', tone:'muted', hint:'별도 신청 없이 이용 조건을 확인하세요.' };
+    if (draft) return { label:'이어서 준비', action:'prepare', tone:'primary', hint:'저장한 준비 상태를 이어갈 수 있어요.' };
+    return { label:'신청 준비', action:'prepare', tone:'primary', hint:'대상·서류를 확인한 뒤 공식 접수처로 이동해요.' };
+}
+
 function syncCounts() {
     byId('savedCount').textContent = state.savedIds.size;
     byId('comparisonCount').textContent = state.comparisonIds.size;
@@ -231,7 +262,7 @@ function recommendationBadge(item) {
 }
 
 function matchesQuickFilter(item) {
-    if (state.quickFilter === 'urgent') return item.urgent === true;
+    if (state.quickFilter === 'urgent') return deadlineMeta(item).status === 'URGENT';
     if (state.quickFilter === 'online') {
         const channel = applicationChannel(item);
         return Boolean(channel.directAvailable || channel.officialUrl || item.applyUrl);
@@ -257,8 +288,10 @@ function deadlineInfo(value) {
 
 function recommendationScore(item) {
     const channel = applicationChannel(item);
+    const deadline = deadlineMeta(item);
     return (item.audienceStatus === 'MATCHED' ? 8 : 0)
-        + (item.urgent ? 4 : 0)
+        + (deadline.status === 'URGENT' ? 4 : 0)
+        + (deadline.status === 'EXPIRED' ? -8 : 0)
         + (channel.directAvailable || channel.officialUrl || item.applyUrl ? 2 : 0);
 }
 
@@ -311,7 +344,7 @@ function renderResultOverview() {
         copy.textContent = '검색어와 분야를 바꿔가며 더 넓게 탐색하거나, 상세 화면에서 공식 기준을 확인하세요.';
     } else {
         headline.textContent = '전체 공공혜택에서 시작해요';
-        copy.textContent = '맞춤진단을 하면 나에게 가까운 혜택부터 우선해서 보여드려요.';
+        copy.textContent = '아직 맞춤 추천 전이에요. 지역과 분야를 고르거나 5분 진단으로 결과를 좁혀보세요.';
     }
     chipBox.innerHTML = criteria.length
         ? criteria.map(value => `<span>${escapeHtml(value)}</span>`).join('')
@@ -325,12 +358,10 @@ function syncQuickFilterButtons() {
 function renderPrograms(items) {
     const visibleItems = sortPrograms(items.filter(matchesQuickFilter));
     renderResultOverview();
-    byId('count').textContent = state.quickFilter === 'all'
-        ? `${formatNumber(state.totalResults)}개 혜택`
-        : `${formatNumber(visibleItems.length)}개 표시 · 전체 ${formatNumber(state.totalResults)}개`;
+    byId('count').textContent = `${formatNumber(state.totalResults)}개 혜택`;
     byId('resultSubcopy').textContent = state.quickFilter === 'all'
-        ? '카드에서 핵심 정보를 먼저 확인하고, 자세한 기준은 상세 화면에서 확인하세요.'
-        : '현재 불러온 혜택에서 빠르게 골라보고 있어요. 더 많은 결과는 아래 혜택 더 보기를 눌러 확인하세요.';
+        ? '신청 상태와 핵심 조건을 먼저 보고, 자세한 기준은 상세 화면에서 확인하세요.'
+        : '전체 공공혜택을 기준으로 서버에서 조건을 적용했어요. 필요한 항목만 이어서 확인하세요.';
     syncQuickFilterButtons();
     const grid = byId('programList');
     if (!visibleItems.length) {
@@ -351,20 +382,22 @@ function renderPrograms(items) {
         const category = normalizedCategory(item.category);
         const draft = state.drafts.find(value => value.programId === item.id);
         const channel = applicationChannel(item);
+        const deadline = deadlineMeta(item);
+        const action = actionFor(item, draft);
         const saved = state.savedIds.has(item.id);
         const compared = state.comparisonIds.has(item.id);
         const progress = draft ? `<div class="card-progress"><span><i style="width:${draft.completionPercent}%"></i></span><b>${journeyLabels[draft.journeyStatus] || `${draft.completionPercent}% 준비`}</b></div>` : '';
         const audienceNote = state.diagnosis && item.audienceReason && item.audienceStatus !== 'EXCLUDED'
             ? `<div class="audience-reason ${String(item.audienceStatus || 'GENERAL').toLowerCase()}"><i>${item.audienceStatus === 'MATCHED' ? '✓' : 'i'}</i><span>${escapeHtml(item.audienceReason)}</span></div>`
             : '';
-        return `<article class="program-card program-list-item" data-action="detail" data-id="${item.id}" tabindex="0" aria-label="${escapeHtml(item.title)} 상세 보기">
-            <header><div class="card-tags"><span>${escapeHtml(category)}</span>${item.urgent ? '<span class="urgent-chip">먼저 확인</span>' : ''}${recommendationBadge(item)}</div><div class="card-actions"><button class="compare-button ${compared ? 'active' : ''}" data-action="compare" data-id="${item.id}" type="button" aria-pressed="${compared}" aria-label="${compared ? '비교 목록에서 제거' : '비교 목록에 추가'}">${compared ? '✓ 비교 중' : '＋ 비교'}</button><button class="save-button ${saved ? 'active' : ''}" data-action="save" data-id="${item.id}" type="button" aria-label="${saved ? '관심 혜택에서 제거' : '관심 혜택에 저장'}">${saved ? '♥' : '♡'}</button></div></header>
+        return `<article class="program-card program-list-item status-${deadline.status.toLowerCase()}" data-action="detail" data-id="${item.id}" tabindex="0" aria-label="${escapeHtml(item.title)} 상세 보기">
+            <header><div class="card-tags"><span>${escapeHtml(category)}</span><span class="deadline-chip ${deadline.status.toLowerCase()}">${escapeHtml(deadline.label)}</span>${recommendationBadge(item)}</div><div class="card-actions"><button class="compare-button ${compared ? 'active' : ''}" data-action="compare" data-id="${item.id}" type="button" aria-pressed="${compared}" aria-label="${compared ? '비교 목록에서 제거' : '비교 목록에 추가'}">${compared ? '✓ 비교 중' : '＋ 비교'}</button><button class="save-button ${saved ? 'active' : ''}" data-action="save" data-id="${item.id}" type="button" aria-label="${saved ? '관심 혜택에서 제거' : '관심 혜택에 저장'}">${saved ? '♥' : '♡'}</button></div></header>
             <div class="program-title"><span>${categoryIcons[category] ?? '•'}</span><div><small>${escapeHtml(item.region || '전국')}</small><h3>${escapeHtml(item.title)}</h3></div></div>
             <p class="program-summary">${escapeHtml(item.summary || '공식 상세정보에서 지원 내용을 확인할 수 있어요.')}</p>
             ${audienceNote}
             ${progress}
-            <div class="program-row-facts" aria-label="핵심 정보"><span><i>지역</i>${escapeHtml(item.region || '전국')}</span><span><i>신청</i>${escapeHtml(channel.label)}</span><span><i>기간</i>${escapeHtml(item.deadline || '공식 안내 확인')}</span></div>
-            <div class="program-row-action"><span class="program-row-hint">대상·혜택·서류<br>전체 정보 보기</span><div class="card-buttons"><button class="ghost-button" data-action="detail" data-id="${item.id}" type="button">자세히 보기</button><button class="primary-button" data-action="prepare" data-id="${item.id}" type="button">${draft ? '이어서 준비' : '신청 준비'}</button></div></div>
+            <div class="program-row-facts" aria-label="핵심 정보"><span><i>지역</i>${escapeHtml(item.region || '전국')}</span><span><i>신청</i>${escapeHtml(channel.label)}</span><span><i>기간</i>${escapeHtml(deadline.label)}</span></div>
+            <div class="program-row-action"><span class="program-row-hint">${escapeHtml(action.hint)}</span><div class="card-buttons"><button class="ghost-button" data-action="detail" data-id="${item.id}" type="button">자세히 보기</button><button class="${action.tone === 'primary' ? 'primary-button' : 'ghost-button'}" data-action="${action.action}" data-id="${item.id}" type="button">${escapeHtml(action.label)}</button></div></div>
         </article>`;
     }).join('');
 }
@@ -458,7 +491,16 @@ function toggleComparison(id) {
 
 function setQuickFilter(filter) {
     state.quickFilter = filter;
-    renderPrograms(state.visibleItems);
+    syncQuickFilterButtons();
+    if (filter === 'matched' && !state.diagnosis) {
+        state.visibleItems = [];
+        state.totalResults = 0;
+        state.hasMore = false;
+        byId('loadMore').hidden = true;
+        renderPrograms([]);
+        return;
+    }
+    loadPrograms();
 }
 
 async function loadPrograms(page = 0, append = false) {
@@ -475,6 +517,7 @@ async function loadPrograms(page = 0, append = false) {
         page: String(page),
         size: '24'
     });
+    if (state.quickFilter !== 'all') query.set('filter', state.quickFilter);
     if (state.diagnosis?.age) query.set('age', state.diagnosis.age);
     if (state.diagnosis?.household) query.set('household', state.diagnosis.household);
     try {

@@ -183,11 +183,9 @@ public class PublicServiceSyncService {
         String benefit = clean(first(text(item, "지원내용"), text(item, "신청방법"), "지원 내용 확인"), 300);
         String deadline = clean(first(text(item, "신청기한"), "기관 공고 확인"), 180);
         String applyUrl = clean(text(item, "상세조회URL"), 500);
-        String category = category(field, title);
-        String region = region(agency, agencyType);
-        String urgencyText = (title + " " + deadline).toLowerCase(Locale.ROOT);
-        boolean urgent = urgencyText.contains("1인") || urgencyText.contains("청년")
-                || urgencyText.contains("월세") || urgencyText.contains("긴급") || urgencyText.contains("안심");
+        String category = BenefitPresentation.category(category(field, title), title);
+        String region = BenefitPresentation.region(region(agency, agencyType), title);
+        boolean urgent = BenefitDeadline.analyze(deadline).urgent();
         return new SupportProgram(externalId, title, region, category, target, summary,
                 benefit, applyUrl, deadline, urgent);
     }

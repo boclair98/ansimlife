@@ -46,6 +46,7 @@ public class SupportProgramController {
             @RequestParam(defaultValue = "") String keyword,
             @RequestParam(defaultValue = "") String age,
             @RequestParam(defaultValue = "") String household,
+            @RequestParam(defaultValue = "") String filter,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "24") int size) {
         String normalizedRegion = region.trim();
@@ -53,6 +54,7 @@ public class SupportProgramController {
         String normalizedKeyword = keyword.trim();
         String normalizedAge = age.trim();
         String normalizedHousehold = household.trim();
+        String normalizedFilter = filter.trim();
         int normalizedPage = Math.max(0, page);
         int normalizedSize = Math.max(12, Math.min(size, 60));
 
@@ -62,11 +64,18 @@ public class SupportProgramController {
         if (!audienceMatcher.supportsHousehold(normalizedHousehold)) {
             throw new ResponseStatusException(BAD_REQUEST, "지원하지 않는 가구 상황입니다.");
         }
+        if (!normalizedFilter.isEmpty() && !normalizedFilter.equals("online")
+                && !normalizedFilter.equals("urgent") && !normalizedFilter.equals("matched")) {
+            throw new ResponseStatusException(BAD_REQUEST, "지원하지 않는 혜택 필터입니다.");
+        }
 
         if (!normalizedAge.isEmpty() || !normalizedHousehold.isEmpty()) {
             List<SupportProgram> matches = repository.searchCandidates(
-                            normalizedRegion, normalizedCategory, normalizedKeyword).stream()
+                            normalizedRegion, normalizedCategory, normalizedKeyword,
+                            normalizedFilter.equals("matched") ? "" : normalizedFilter).stream()
                     .filter(program -> audienceMatcher.matches(program, normalizedAge, normalizedHousehold))
+                    .filter(program -> !normalizedFilter.equals("matched")
+                            || audienceMatcher.explain(program, normalizedAge, normalizedHousehold).status().equals("MATCHED"))
                     .toList();
             long offset = (long) normalizedPage * normalizedSize;
             int from = (int) Math.min(offset, matches.size());
@@ -78,6 +87,7 @@ public class SupportProgramController {
         }
 
         Page<SupportProgram> result = repository.search(normalizedRegion, normalizedCategory, normalizedKeyword,
+                normalizedFilter,
                 PageRequest.of(normalizedPage, normalizedSize));
         return new SearchResponse(result.getContent().stream()
                 .map(program -> toResponse(program, normalizedAge, normalizedHousehold)).toList(), result.getNumber(), result.getSize(),
@@ -105,8 +115,9 @@ public class SupportProgramController {
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "지원 정보를 찾을 수 없습니다."));
         PublicServiceDetailService.ProgramDetail detail = detailService.find(program);
         return new ProgramDetailResponse(
-                program.getId(), program.getExternalId(), program.getTitle(), program.getRegion(),
-                program.getCategory(), detail.summary(), detail.purpose(), detail.target(), detail.benefit(),
+                program.getId(), program.getExternalId(), program.getTitle(),
+                BenefitPresentation.region(program.getRegion(), program.getTitle()),
+                BenefitPresentation.category(program.getCategory(), program.getTitle()), detail.summary(), detail.purpose(), detail.target(), detail.benefit(),
                 detail.criteria(), detail.applicationMethod(), detail.deadline(), detail.agency(),
                 detail.department(), detail.receptionAgency(), detail.contact(), detail.requiredDocuments(),
                 detail.officialDocuments(), detail.identityDocuments(), detail.onlineUrl(), detail.legalBasis(),
@@ -115,11 +126,15 @@ public class SupportProgramController {
 
     private ProgramResponse toResponse(SupportProgram program, String ageGroup, String household) {
         SupportProgramAudienceMatcher.AudienceFit fit = audienceMatcher.explain(program, ageGroup, household);
+        String displayCategory = BenefitPresentation.category(program.getCategory(), program.getTitle());
+        String displayRegion = BenefitPresentation.region(program.getRegion(), program.getTitle());
+        BenefitDeadline.Info deadline = BenefitDeadline.analyze(program.getDeadline());
         return new ProgramResponse(
-                program.getId(), program.getExternalId(), program.getTitle(), program.getRegion(),
-                program.getCategory(), program.getTarget(), program.getSummary(), program.getBenefit(),
-                program.getApplyUrl(), program.getDeadline(), program.isUrgent(),
-                connectorRegistry.describe(program), fit.status(), fit.reason());
+                program.getId(), program.getExternalId(), program.getTitle(), displayRegion,
+                displayCategory, program.getTarget(), program.getSummary(), program.getBenefit(),
+                program.getApplyUrl(), program.getDeadline(), deadline.status(), deadline.label(),
+                deadline.urgent(), deadline.expired(), connectorRegistry.describe(program),
+                fit.status(), fit.reason());
     }
 
     public record ProgramResponse(
@@ -133,7 +148,10 @@ public class SupportProgramController {
             String benefit,
             String applyUrl,
             String deadline,
+            String deadlineStatus,
+            String deadlineLabel,
             boolean urgent,
+            boolean expired,
             ApplicationChannel application,
             String audienceStatus,
             String audienceReason) {}
