@@ -437,6 +437,9 @@ function setQuickFilter(filter) {
     state.quickFilter = filter;
     syncQuickFilterButtons();
     if (filter === 'matched' && !state.diagnosis) {
+        state.searchController?.abort();
+        state.loading = false;
+        setProgramBusy(false);
         state.visibleItems = [];
         state.totalResults = 0;
         state.hasMore = false;

@@ -3,3 +3,15 @@
 target
 *.iml
 README.md
+.env
+.env.*
+.coders
+work
+outputs
+uploads
+*.log
+*.pem
+*.key
+*.p12
+*.pfx
+*.db

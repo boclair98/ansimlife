@@ -696,6 +696,9 @@ docker run --rm -p 8080:8080 \
 
 `Dockerfile`은 Maven 빌드 단계와 JRE 실행 단계를 분리한 멀티스테이지 빌드를 사용합니다.
 
+화면 파일은 JAR 내부와 `/app/public/`에 함께 포함하고, 컨테이너의 정적 리소스 경로를 명시합니다. 빌드 시 `index.html`과 `app.js`가 없으면 실패하도록 해 API만 정상인 배포를 방지합니다. `/api/health` 확인에 더해 홈페이지·JavaScript·CSS·폰트도 HTTP 200인지 확인해야 합니다. `StaticAssetsTest`는 이 경로들의 회귀를 검사합니다.
+정적 응답은 `Cache-Control: no-cache`로 재검증해 이전 화면이 장기간 남는 것을 줄입니다. 폰트 파일도 브라우저에 저장한 뒤 변경 여부를 재확인할 수 있습니다.
+
 ## Coders 배포
 
 `coders.yaml`에는 웹 서비스와 PostgreSQL 컴포넌트가 정의되어 있습니다.
@@ -742,7 +745,9 @@ PostgreSQL 연결정보는 `coders.yaml`의 컴포넌트 참조를 통해 웹 �
 - 배포 원본은 [boclair98/ansimlife](https://github.com/boclair98/ansimlife)의 기본 브랜치입니다.
 - 조직 저장소 [coders-kr/ansimlife](https://github.com/coders-kr/ansimlife)는 원본의 실제 Fork로 유지하고, 원본 변경 후 동기화합니다.
 - Coders.kr 프로젝트는 [ansimlife.coders.kr](https://ansimlife.coders.kr)이며, 원본 저장소의 변경을 기준으로 빌드·릴리스합니다.
-- Coders.kr push-to-deploy는 원본 `main`에 연결되어 있어, 검증된 push가 새 배포를 자동으로 시작합니다.
+- Coders.kr의 자동 배포 브랜치는 원본 `main`으로 설정되어 있습니다. push 후 새 배포가 실제로 생성됐는지 반드시 확인하며, 설정만으로 배포 완료를 판단하지 않습니다.
+- 새 배포가 생성되지 않으면 [현재 배포 문서](https://coders.kr/llms.txt)에 따라 `POST /v1/agent/deploys`에 `repo=https://github.com/boclair98/ansimlife`, `name=ansimlife`를 보내 기존 프로젝트를 갱신합니다. 인증값은 승인된 로컬 저장소에서 읽고 `User-Agent: Coders-Agent/1.0`을 명시합니다. 이미 실행 중인 배포가 있으면 중복 요청하지 않습니다.
+- `GET /v1/agent/projects/ansimlife`의 새 `last_deployment`가 `ready`인지 확인한 뒤 실제 홈페이지·리소스·API·모바일 화면을 검증합니다. 이전 배포의 `ready`나 캐시된 이전 화면으로 성공을 판단하지 않습니다.
 - 변경은 CI 검증을 통과한 뒤 원본 `main`에 반영하고, 배포 상태와 운영 URL을 확인합니다.
 
 ## 문제 해결
