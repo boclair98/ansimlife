@@ -8,3 +8,17 @@ target/
 !.env.example
 work/
 outputs/
+
+# Local credentials, private databases and generated user files
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.sqlite
+*.sqlite3
+*.db
+*.mv.db
+uploads/
+.vscode/

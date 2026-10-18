@@ -1,7 +1,5 @@
 package kr.coders.ansimlife.support;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import kr.coders.ansimlife.application.ApplicationChannel;
 import kr.coders.ansimlife.application.ApplicationConnectorRegistry;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,7 +10,10 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
@@ -47,6 +48,8 @@ public class SupportProgramController {
             @RequestParam(defaultValue = "") String age,
             @RequestParam(defaultValue = "") String household,
             @RequestParam(defaultValue = "") String filter,
+            @RequestParam(defaultValue = "recommended") String sort,
+            @RequestParam(defaultValue = "false") boolean hideClosed,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "24") int size) {
         String normalizedRegion = region.trim();
@@ -55,6 +58,7 @@ public class SupportProgramController {
         String normalizedAge = age.trim();
         String normalizedHousehold = household.trim();
         String normalizedFilter = filter.trim();
+        String normalizedSort = sort.trim();
         int normalizedPage = Math.max(0, page);
         int normalizedSize = Math.max(12, Math.min(size, 60));
 
@@ -68,30 +72,60 @@ public class SupportProgramController {
                 && !normalizedFilter.equals("urgent") && !normalizedFilter.equals("matched")) {
             throw new ResponseStatusException(BAD_REQUEST, "지원하지 않는 혜택 필터입니다.");
         }
-
-        if (!normalizedAge.isEmpty() || !normalizedHousehold.isEmpty()) {
-            List<SupportProgram> matches = repository.searchCandidates(
-                            normalizedRegion, normalizedCategory, normalizedKeyword,
-                            normalizedFilter.equals("matched") ? "" : normalizedFilter).stream()
-                    .filter(program -> audienceMatcher.matches(program, normalizedAge, normalizedHousehold))
-                    .filter(program -> !normalizedFilter.equals("matched")
-                            || audienceMatcher.explain(program, normalizedAge, normalizedHousehold).status().equals("MATCHED"))
-                    .toList();
-            long offset = (long) normalizedPage * normalizedSize;
-            int from = (int) Math.min(offset, matches.size());
-            int to = Math.min(from + normalizedSize, matches.size());
-            List<ProgramResponse> items = matches.subList(from, to).stream()
-                    .map(program -> toResponse(program, normalizedAge, normalizedHousehold))
-                    .toList();
-            return new SearchResponse(items, normalizedPage, normalizedSize, matches.size(), to < matches.size());
+        if (!Set.of("recommended", "deadline", "online").contains(normalizedSort)) {
+            throw new ResponseStatusException(BAD_REQUEST, "지원하지 않는 정렬 방식입니다.");
         }
 
-        Page<SupportProgram> result = repository.search(normalizedRegion, normalizedCategory, normalizedKeyword,
-                normalizedFilter,
-                PageRequest.of(normalizedPage, normalizedSize));
-        return new SearchResponse(result.getContent().stream()
-                .map(program -> toResponse(program, normalizedAge, normalizedHousehold)).toList(), result.getNumber(), result.getSize(),
-                result.getTotalElements(), result.hasNext());
+        // Deadline and audience data are derived from public-data text. Evaluate and
+        // sort all filtered candidates before paging, so later pages cannot outrank
+        // earlier ones. Revisit a persisted search index if the catalogue grows.
+        List<SearchCandidate> matches = repository.searchCandidates(
+                        normalizedRegion, normalizedCategory, normalizedKeyword,
+                        normalizedFilter.equals("matched") ? "" : normalizedFilter).stream()
+                .filter(program -> audienceMatcher.matches(program, normalizedAge, normalizedHousehold))
+                .map(program -> new SearchCandidate(program, BenefitDeadline.analyze(program.getDeadline()),
+                        audienceMatcher.explain(program, normalizedAge, normalizedHousehold).status()))
+                .filter(candidate -> !normalizedFilter.equals("matched") || candidate.audienceStatus().equals("MATCHED"))
+                .filter(candidate -> !hideClosed || !candidate.deadline().expired())
+                .sorted(searchOrder(normalizedSort))
+                .toList();
+        long offset = (long) normalizedPage * normalizedSize;
+        int from = (int) Math.min(offset, matches.size());
+        int to = Math.min(from + normalizedSize, matches.size());
+        List<ProgramResponse> items = matches.subList(from, to).stream()
+                .map(candidate -> toResponse(candidate.program(), normalizedAge, normalizedHousehold))
+                .toList();
+        return new SearchResponse(items, normalizedPage, normalizedSize, matches.size(), to < matches.size());
+    }
+
+    private Comparator<SearchCandidate> searchOrder(String sort) {
+        Comparator<SearchCandidate> recommended = Comparator
+                .comparingInt(SearchCandidate::recommendationScore).reversed()
+                .thenComparing(candidate -> candidate.program().getId());
+        return switch (sort) {
+            case "deadline" -> Comparator.comparingInt(SearchCandidate::deadlineBucket)
+                    .thenComparing(candidate -> candidate.deadline().lastDate(), Comparator.nullsLast(LocalDate::compareTo))
+                    .thenComparing(recommended);
+            case "online" -> Comparator.comparing(SearchCandidate::hasOnlineAddress).reversed()
+                    .thenComparing(recommended);
+            default -> recommended;
+        };
+    }
+
+    private record SearchCandidate(SupportProgram program, BenefitDeadline.Info deadline, String audienceStatus) {
+        boolean hasOnlineAddress() {
+            return program.getApplyUrl() != null && !program.getApplyUrl().isBlank();
+        }
+
+        int recommendationScore() {
+            return (audienceStatus.equals("MATCHED") ? 8 : 0)
+                    + (deadline.urgent() ? 4 : 0) - (deadline.expired() ? 8 : 0)
+                    + (hasOnlineAddress() ? 2 : 0);
+        }
+
+        int deadlineBucket() {
+            return deadline.expired() ? 2 : deadline.lastDate() == null ? 1 : 0;
+        }
     }
 
     @GetMapping("/meta")

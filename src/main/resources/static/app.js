@@ -1,4 +1,5 @@
 const byId = id => document.getElementById(id);
+const icon = name => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 
 const state = {
     items: [],
@@ -22,20 +23,23 @@ const state = {
     diagnosis: readStorage('ansimlife.diagnosis', null),
     quickFilter: 'all',
     sortOrder: 'recommended',
-    sharedComparisonPending: false
+    sharedComparisonPending: false,
+    hideClosed: true,
+    searchController: null,
+    recent: readStorage('ansimlife.recent', []).filter(item => Number.isSafeInteger(item?.id)).slice(0, 5)
 };
 
 const categories = [
-    { name:'생활안정', icon:'₩', copy:'생활비·소득' },
-    { name:'주거·자립', icon:'⌂', copy:'주거·자립' },
-    { name:'보육·교육', icon:'✎', copy:'보육·배움' },
-    { name:'고용·창업', icon:'↗', copy:'일자리·사업' },
-    { name:'보건·의료', icon:'＋', copy:'건강·의료비' },
-    { name:'행정·안전', icon:'✓', copy:'안전·행정' },
-    { name:'임신·출산', icon:'♡', copy:'임신·출산' },
-    { name:'보호·돌봄', icon:'∞', copy:'돌봄·보호' },
-    { name:'문화·환경', icon:'◌', copy:'문화·환경' },
-    { name:'농림축산어업', icon:'♧', copy:'농어업' }
+    { name:'생활안정', icon:'wallet', copy:'생활비·소득' },
+    { name:'주거·자립', icon:'home', copy:'주거·자립' },
+    { name:'보육·교육', icon:'book', copy:'보육·배움' },
+    { name:'고용·창업', icon:'work', copy:'일자리·사업' },
+    { name:'보건·의료', icon:'health', copy:'건강·의료비' },
+    { name:'행정·안전', icon:'shield', copy:'안전·행정' },
+    { name:'임신·출산', icon:'heart', copy:'임신·출산' },
+    { name:'보호·돌봄', icon:'care', copy:'돌봄·보호' },
+    { name:'문화·환경', icon:'sun', copy:'문화·환경' },
+    { name:'농림축산어업', icon:'leaf', copy:'농어업' }
 ];
 
 const legacyCategories = { 주거:'주거·자립', 안전:'행정·안전', 생활:'생활안정', 관계:'문화·환경' };
@@ -174,6 +178,8 @@ function syncCounts() {
     byId('applicationCount').textContent = state.drafts.length;
     byId('asideApplicationCount').textContent = state.drafts.length;
     byId('mobileApplicationCount').textContent = state.drafts.length;
+    byId('comparisonDock').hidden = state.comparisonIds.size === 0;
+    byId('dockCount').textContent = state.comparisonIds.size;
 }
 
 function syncAuthUI() {
@@ -191,12 +197,12 @@ function renderCategoryControls(categoryCounts = {}) {
     if ([...select.options].some(option => option.value === active)) select.value = active;
 
     byId('quickCategories').innerHTML = '<button class="active" type="button" data-category="">전체</button>' + categories
-        .map(item => `<button type="button" data-category="${escapeHtml(item.name)}">${item.icon} ${escapeHtml(item.name)}</button>`).join('');
+        .map(item => `<button type="button" data-category="${escapeHtml(item.name)}">${icon(item.icon)} ${escapeHtml(item.name)}</button>`).join('');
 
     byId('categoryGrid').innerHTML = categories.map(item => `
         <button type="button" data-category="${escapeHtml(item.name)}">
-            <span class="category-icon">${item.icon}</span>
-            <span><strong>${escapeHtml(item.name)}</strong><small>${categoryCounts[item.name] ? `${formatNumber(categoryCounts[item.name])}개` : item.copy}</small></span>
+            <span class="category-icon">${icon(item.icon)}</span>
+            <span><strong>${escapeHtml(item.name === '농림축산어업' ? '농어업' : item.name)}</strong><small>${categoryCounts[item.name] ? `${formatNumber(categoryCounts[item.name])}개` : item.copy}</small></span>
             <i>→</i>
         </button>`).join('');
     syncCategorySelection(select.value);
@@ -204,7 +210,7 @@ function renderCategoryControls(categoryCounts = {}) {
 
 function populateDiagnosisNeeds() {
     byId('diagnosisNeeds').innerHTML = categories.map(item => `
-        <label><input type="radio" name="need" value="${escapeHtml(item.name)}" required><span><i>${item.icon}</i>${escapeHtml(item.name)}</span></label>`).join('');
+        <label><input type="radio" name="need" value="${escapeHtml(item.name)}" required><span><i>${icon(item.icon)}</i>${escapeHtml(item.name)}</span></label>`).join('');
 }
 
 function syncCategorySelection(category) {
@@ -222,7 +228,7 @@ function setProgramBusy(busy) {
 
 function renderProgramError(message) {
     const grid = byId('programList');
-    grid.innerHTML = `<div class="empty-state" role="alert"><span>!</span><h3>혜택을 불러오지 못했어요</h3><p>${escapeHtml(message)}</p><button id="retryPrograms" class="primary-button" type="button">다시 시도</button></div>`;
+    grid.innerHTML = `<div class="empty-state" role="alert"><span>${icon('search')}</span><h3>혜택을 불러오지 못했어요</h3><p>${escapeHtml(message)}</p><button id="retryPrograms" class="primary-button" type="button">다시 시도</button></div>`;
     byId('retryPrograms').addEventListener('click', () => loadPrograms());
 }
 
@@ -240,10 +246,10 @@ async function loadMeta() {
         byId('storedBenefitCount').textContent = `${formatNumber(meta.storedCount)}개 혜택`;
         byId('heroBenefitCount').textContent = `${formatNumber(meta.storedCount || meta.totalAvailable)}개`;
         byId('heroCategoryCount').textContent = `${Math.max(Object.keys(counts).length, categories.length)}개 분야`;
-        const labels = { READY:'최신 정보 반영 완료', SYNCING:'전체 혜택 동기화 중', PARTIAL:'혜택 추가 반영 중', WAITING:'동기화 준비 중', DISABLED:'데이터 연결 필요', ERROR:'저장된 최신 정보 제공 중' };
-        byId('syncStatus').textContent = labels[meta.syncStatus] ?? '공식정보 매일 최신화';
+        const labels = { READY:'공식 목록 동기화 완료', SYNCING:'전체 혜택 동기화 중', PARTIAL:'혜택 추가 반영 중', WAITING:'동기화 준비 중', DISABLED:'데이터 연결 필요', ERROR:'저장된 최신 정보 제공 중' };
+        byId('syncStatus').textContent = labels[meta.syncStatus] ?? '공식 목록 상태 확인 필요';
         byId('syncUpdatedAt').textContent = meta.lastSyncedAt ? formatFreshness(meta.lastSyncedAt) : '공식 기준일 확인 중';
-        byId('resultSourceStatus').textContent = meta.lastSyncedAt ? `공식 데이터 · ${formatDateTime(meta.lastSyncedAt)}` : '공식 데이터 기준';
+        byId('resultSourceStatus').textContent = meta.lastSyncedAt ? `공공데이터 기준 · ${formatDateTime(meta.lastSyncedAt)}` : '공공데이터 기준 · 갱신 시각 확인 필요';
         byId('syncDot').classList.toggle('spinning', ['SYNCING','PARTIAL'].includes(meta.syncStatus));
         renderCategoryControls(counts);
         if (['SYNCING','PARTIAL'].includes(meta.syncStatus)) setTimeout(loadMeta, 6000);
@@ -259,60 +265,6 @@ function recommendationBadge(item) {
     if (item.audienceStatus === 'MATCHED') return '<span class="recommendation-chip">내 조건 일치</span>';
     if (item.audienceStatus === 'GENERAL') return '<span class="criteria-chip">공식 기준 확인</span>';
     return '';
-}
-
-function matchesQuickFilter(item) {
-    if (state.quickFilter === 'urgent') return deadlineMeta(item).status === 'URGENT';
-    if (state.quickFilter === 'online') {
-        const channel = applicationChannel(item);
-        return Boolean(channel.directAvailable || channel.officialUrl || item.applyUrl);
-    }
-    if (state.quickFilter === 'matched') return state.diagnosis && item.audienceStatus === 'MATCHED';
-    return true;
-}
-
-function deadlineInfo(value) {
-    const text = String(value ?? '');
-    if (/상시|수시|연중/.test(text)) return { bucket: 1, timestamp: Number.POSITIVE_INFINITY };
-    const matches = [...text.matchAll(/(20\d{2})\s*[./-]\s*(\d{1,2})(?:\s*[./-]\s*(\d{1,2}))?/g)]
-        .map(match => Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3] || 1)));
-    if (!matches.length) return { bucket: 1, timestamp: Number.POSITIVE_INFINITY };
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayTimestamp = today.getTime();
-    const upcoming = matches.filter(timestamp => timestamp >= todayTimestamp);
-    return upcoming.length
-        ? { bucket: 0, timestamp: Math.min(...upcoming) }
-        : { bucket: 2, timestamp: Math.max(...matches) };
-}
-
-function recommendationScore(item) {
-    const channel = applicationChannel(item);
-    const deadline = deadlineMeta(item);
-    return (item.audienceStatus === 'MATCHED' ? 8 : 0)
-        + (deadline.status === 'URGENT' ? 4 : 0)
-        + (deadline.status === 'EXPIRED' ? -8 : 0)
-        + (channel.directAvailable || channel.officialUrl || item.applyUrl ? 2 : 0);
-}
-
-function sortPrograms(items) {
-    return [...items].sort((left, right) => {
-        if (state.sortOrder === 'deadline') {
-            const leftDeadline = deadlineInfo(left.deadline);
-            const rightDeadline = deadlineInfo(right.deadline);
-            if (leftDeadline.bucket !== rightDeadline.bucket) return leftDeadline.bucket - rightDeadline.bucket;
-            const deadlineDifference = leftDeadline.timestamp - rightDeadline.timestamp;
-            if (deadlineDifference !== 0) return deadlineDifference;
-        }
-        if (state.sortOrder === 'online') {
-            const leftOnline = applicationChannel(left).directAvailable || applicationChannel(left).officialUrl || left.applyUrl ? 1 : 0;
-            const rightOnline = applicationChannel(right).directAvailable || applicationChannel(right).officialUrl || right.applyUrl ? 1 : 0;
-            if (leftOnline !== rightOnline) return rightOnline - leftOnline;
-        }
-        const scoreDifference = recommendationScore(right) - recommendationScore(left);
-        if (scoreDifference !== 0) return scoreDifference;
-        return Number(left.id || 0) - Number(right.id || 0);
-    });
 }
 
 function currentCriteria() {
@@ -336,6 +288,8 @@ function renderResultOverview() {
     const copy = byId('resultOverviewCopy');
     const chipBox = byId('activeCriteria');
     if (!headline || !copy || !chipBox) return;
+    headline.closest('.result-overview').hidden = criteria.length === 0 || Boolean(state.diagnosis);
+    byId('resetSearch').hidden = criteria.length === 0;
     if (state.diagnosis) {
         headline.textContent = `${state.diagnosis.age} · ${state.diagnosis.household} 조건으로 좁혔어요`;
         copy.textContent = '명시적으로 맞는 후보를 먼저 보고, 나머지는 공식 기준을 추가 확인해보세요.';
@@ -344,7 +298,7 @@ function renderResultOverview() {
         copy.textContent = '검색어와 분야를 바꿔가며 더 넓게 탐색하거나, 상세 화면에서 공식 기준을 확인하세요.';
     } else {
         headline.textContent = '전체 공공혜택에서 시작해요';
-        copy.textContent = '아직 맞춤 추천 전이에요. 지역과 분야를 고르거나 5분 진단으로 결과를 좁혀보세요.';
+        copy.textContent = '아직 맞춤 추천 전이에요. 지역과 분야를 고르거나 맞춤 조건으로 결과를 좁혀보세요.';
     }
     chipBox.innerHTML = criteria.length
         ? criteria.map(value => `<span>${escapeHtml(value)}</span>`).join('')
@@ -356,48 +310,37 @@ function syncQuickFilterButtons() {
 }
 
 function renderPrograms(items) {
-    const visibleItems = sortPrograms(items.filter(matchesQuickFilter));
     renderResultOverview();
-    byId('count').textContent = `${formatNumber(state.totalResults)}개 혜택`;
-    byId('resultSubcopy').textContent = state.quickFilter === 'all'
-        ? '신청 상태와 핵심 조건을 먼저 보고, 자세한 기준은 상세 화면에서 확인하세요.'
-        : '전체 공공혜택을 기준으로 서버에서 조건을 적용했어요. 필요한 항목만 이어서 확인하세요.';
+    byId('count').textContent = `${formatNumber(state.totalResults)}`;
+    byId('resultSubcopy').textContent = state.diagnosis
+        ? '선택한 조건과 비교한 후보예요. 최종 기준은 공식 공고에서 확인해요.'
+        : state.quickFilter === 'urgent' ? '마감이 가까운 혜택부터 확인해보세요.'
+        : '공식 정보를 바탕으로, 필요한 내용부터 한눈에.';
     syncQuickFilterButtons();
     const grid = byId('programList');
-    if (!visibleItems.length) {
-        const filterCopy = state.quickFilter === 'matched' && !state.diagnosis
-            ? '맞춤진단을 먼저 완료하면 내 조건과 명시적으로 맞는 혜택을 골라볼 수 있어요.'
-            : state.quickFilter !== 'all'
-                ? '현재 불러온 목록에는 이 조건에 맞는 혜택이 없어요. 전체로 보거나 혜택을 더 불러와보세요.'
-                : state.diagnosis
-                    ? '다른 분야나 가구 상황을 선택해 다시 확인해보세요. 맞지 않는 연령 전용 혜택은 표시하지 않습니다.'
-                    : '지역을 전체로 바꾸거나 검색어를 짧게 입력해보세요.';
-        const heading = state.quickFilter !== 'all'
-            ? '조건에 맞는 혜택이 없어요'
-            : state.diagnosis ? `${state.diagnosis.age} · ${state.diagnosis.household} 조건에 맞는 혜택이 없어요` : '조건에 맞는 혜택이 아직 없어요';
-        grid.innerHTML = `<div class="empty-state"><span>⌕</span><h3>${escapeHtml(heading)}</h3><p>${escapeHtml(filterCopy)}</p></div>`;
+    if (!items.length) {
+        const needsDiagnosis = state.quickFilter === 'matched' && !state.diagnosis;
+        grid.innerHTML = `<div class="empty-state"><span>${icon('search')}</span><h3>${needsDiagnosis ? '내 조건을 먼저 알려주세요' : '조건에 맞는 혜택이 없어요'}</h3><p>${needsDiagnosis ? '지역과 생활 상황을 선택하면 맞는 후보를 모아드려요.' : '검색어를 짧게 바꾸거나 지역·분야 조건을 넓혀보세요.'}</p><button class="primary-button" type="button" id="emptyAction">${needsDiagnosis ? '맞춤 조건 선택' : '전체 혜택 보기'}</button></div>`;
+        byId('emptyAction').addEventListener('click', () => needsDiagnosis ? openDiagnosis() : byId('resetSearch').click());
         return;
     }
-    grid.innerHTML = visibleItems.map(item => {
+    grid.innerHTML = items.map(item => {
         const category = normalizedCategory(item.category);
-        const draft = state.drafts.find(value => value.programId === item.id);
-        const channel = applicationChannel(item);
         const deadline = deadlineMeta(item);
-        const action = actionFor(item, draft);
         const saved = state.savedIds.has(item.id);
         const compared = state.comparisonIds.has(item.id);
-        const progress = draft ? `<div class="card-progress"><span><i style="width:${draft.completionPercent}%"></i></span><b>${journeyLabels[draft.journeyStatus] || `${draft.completionPercent}% 준비`}</b></div>` : '';
-        const audienceNote = state.diagnosis && item.audienceReason && item.audienceStatus !== 'EXCLUDED'
-            ? `<div class="audience-reason ${String(item.audienceStatus || 'GENERAL').toLowerCase()}"><i>${item.audienceStatus === 'MATCHED' ? '✓' : 'i'}</i><span>${escapeHtml(item.audienceReason)}</span></div>`
-            : '';
-        return `<article class="program-card program-list-item status-${deadline.status.toLowerCase()}" data-action="detail" data-id="${item.id}" tabindex="0" aria-label="${escapeHtml(item.title)} 상세 보기">
-            <header><div class="card-tags"><span>${escapeHtml(category)}</span><span class="deadline-chip ${deadline.status.toLowerCase()}">${escapeHtml(deadline.label)}</span>${recommendationBadge(item)}</div><div class="card-actions"><button class="compare-button ${compared ? 'active' : ''}" data-action="compare" data-id="${item.id}" type="button" aria-pressed="${compared}" aria-label="${compared ? '비교 목록에서 제거' : '비교 목록에 추가'}">${compared ? '✓ 비교 중' : '＋ 비교'}</button><button class="save-button ${saved ? 'active' : ''}" data-action="save" data-id="${item.id}" type="button" aria-label="${saved ? '관심 혜택에서 제거' : '관심 혜택에 저장'}">${saved ? '♥' : '♡'}</button></div></header>
-            <div class="program-title"><span>${categoryIcons[category] ?? '•'}</span><div><small>${escapeHtml(item.region || '전국')}</small><h3>${escapeHtml(item.title)}</h3></div></div>
-            <p class="program-summary">${escapeHtml(item.summary || '공식 상세정보에서 지원 내용을 확인할 수 있어요.')}</p>
-            ${audienceNote}
-            ${progress}
-            <div class="program-row-facts" aria-label="핵심 정보"><span><i>지역</i>${escapeHtml(item.region || '전국')}</span><span><i>신청</i>${escapeHtml(channel.label)}</span><span><i>기간</i>${escapeHtml(deadline.label)}</span></div>
-            <div class="program-row-action"><span class="program-row-hint">${escapeHtml(action.hint)}</span><div class="card-buttons"><button class="ghost-button" data-action="detail" data-id="${item.id}" type="button">자세히 보기</button><button class="${action.tone === 'primary' ? 'primary-button' : 'ghost-button'}" data-action="${action.action}" data-id="${item.id}" type="button">${escapeHtml(action.label)}</button></div></div>
+        const draft = state.drafts.find(value => value.programId === item.id);
+        const progress = draft ? `<div class="card-progress"><span><i style="width:${draft.completionPercent}%"></i></span><b>${escapeHtml(journeyLabels[draft.journeyStatus] || '준비 중')}</b></div>` : '';
+        const reason = state.diagnosis && item.audienceStatus === 'MATCHED'
+            ? `<p class="audience-reason">${escapeHtml(item.audienceReason || '선택한 조건이 지원대상에 포함돼 있어요.')}</p>` : '';
+        const label = deadline.status === 'OPEN' && deadline.label === '상시 신청' ? '상시 신청' : deadline.label;
+        return `<article class="benefit-card status-${deadline.status.toLowerCase()}" data-action="detail" data-id="${item.id}">
+            <div class="benefit-card-top"><span class="card-category-icon">${icon(categoryIcons[category] || 'leaf')}</span><span class="card-category">${escapeHtml(category)}</span><button class="save-button ${saved ? 'active' : ''}" data-action="save" data-id="${item.id}" type="button" aria-pressed="${saved}" aria-label="${escapeHtml(item.title)} ${saved ? '저장 해제' : '저장'}">${icon('bookmark')}</button></div>
+            <h3><button class="card-title-button" data-action="detail" data-id="${item.id}" type="button">${escapeHtml(item.title)}</button></h3>
+            <span class="card-location">${icon('pin')}${escapeHtml(item.region || '전국')}</span>
+            <p class="benefit-value">${escapeHtml(item.benefit || item.summary || '지원 내용은 공식 상세 안내에서 확인해주세요.')}</p>
+            ${reason}${progress}
+            <div class="benefit-card-bottom"><span class="deadline-chip ${deadline.status.toLowerCase()}">${escapeHtml(label)}</span><button class="compare-button ${compared ? 'active' : ''}" data-action="compare" data-id="${item.id}" type="button" aria-pressed="${compared}" aria-label="${escapeHtml(item.title)} ${compared ? '비교에서 빼기' : '비교에 담기'}">${icon(compared ? 'check' : 'compare')}${compared ? '비교에 담았어요' : '비교하기'}</button></div>
         </article>`;
     }).join('');
 }
@@ -416,6 +359,7 @@ function comparisonValue(value, fallback = '공식 상세에서 확인') {
 function renderComparison() {
     const table = byId('compareTable');
     const items = selectedComparisonItems();
+    table.style.setProperty('--compare-count', Math.max(1, items.length));
     byId('compareStartPreparation').disabled = !items.length;
     byId('compareShare').disabled = !items.length;
     byId('compareClear').disabled = !state.comparisonIds.size;
@@ -504,26 +448,32 @@ function setQuickFilter(filter) {
 }
 
 async function loadPrograms(page = 0, append = false) {
-    if (state.loading) return;
-    state.loading = true;
-    setProgramBusy(true);
-    if (!append) {
-        byId('programList').innerHTML = '<div class="loading-state" role="status" aria-live="polite"><i></i><span>혜택을 찾고 있어요</span></div>';
+    if (append && state.loading) return;
+    if (state.quickFilter === 'matched' && !state.diagnosis) {
+        state.searchController?.abort();
+        state.totalResults = 0; state.visibleItems = []; state.hasMore = false;
+        byId('loadMore').hidden = true; state.loading = false; setProgramBusy(false);
+        renderPrograms([]); return;
     }
+    state.searchController?.abort();
+    const controller = new AbortController();
+    state.searchController = controller;
+    state.loading = true; setProgramBusy(true);
+    if (!append) byId('programList').innerHTML = '<div class="loading-state" role="status"><i></i><span>필요한 혜택을 찾고 있어요</span></div>';
+    else { byId('loadMore').disabled = true; byId('loadMore').textContent = '불러오는 중…'; }
     const query = new URLSearchParams({
-        keyword: byId('keyword').value.trim(),
-        region: byId('region').value,
-        category: byId('category').value,
-        page: String(page),
-        size: '24'
+        keyword: byId('keyword').value.trim(), region: byId('region').value,
+        category: byId('category').value, sort: state.sortOrder,
+        hideClosed: String(state.hideClosed), page: String(page), size: '24'
     });
     if (state.quickFilter !== 'all') query.set('filter', state.quickFilter);
     if (state.diagnosis?.age) query.set('age', state.diagnosis.age);
     if (state.diagnosis?.household) query.set('household', state.diagnosis.household);
     try {
-        const response = await fetch(`/api/programs?${query}`);
+        const response = await fetch(`/api/programs?${query}`, { signal:controller.signal });
         if (!response.ok) throw new Error(await errorMessage(response, '혜택을 불러오지 못했어요.'));
         const result = await response.json();
+        if (controller.signal.aborted) return;
         const incoming = result.items ?? [];
         if (append) {
             const known = new Set(state.visibleItems.map(item => item.id));
@@ -532,23 +482,26 @@ async function loadPrograms(page = 0, append = false) {
         const cache = new Map(state.items.map(item => [item.id, item]));
         incoming.forEach(item => cache.set(item.id, item));
         state.items = [...cache.values()];
-        state.currentPage = Number(result.page || 0);
-        state.totalResults = Number(result.total || 0);
-        state.hasMore = result.hasMore === true;
-        byId('loadMore').hidden = !state.hasMore;
-        renderPrograms(state.visibleItems);
-        renderSaved();
+        state.currentPage = Number(result.page || 0); state.totalResults = Number(result.total || 0);
+        state.hasMore = result.hasMore === true; byId('loadMore').hidden = !state.hasMore;
+        renderPrograms(state.visibleItems); renderSaved();
     } catch (error) {
-        renderProgramError(error.message);
+        if (error.name !== 'AbortError') {
+            if (append) showToast('더 불러오지 못했어요. 잠시 후 다시 눌러주세요.');
+            else renderProgramError(error.message);
+        }
     } finally {
-        state.loading = false;
-        setProgramBusy(false);
+        if (state.searchController === controller) {
+            state.loading = false; setProgramBusy(false); byId('loadMore').disabled = false;
+            byId('loadMore').innerHTML = `혜택 더 보기 ${icon('arrow')}`;
+        }
     }
 }
 
 function toggleSaved(id) {
     state.savedIds.has(id) ? state.savedIds.delete(id) : state.savedIds.add(id);
     writeStorage('ansimlife.saved', [...state.savedIds]);
+    showToast(state.savedIds.has(id) ? '저장했어요. 저장한 혜택에서 다시 볼 수 있어요.' : '저장을 해제했어요.');
     syncCounts();
     renderPrograms(state.visibleItems);
     renderSaved();
@@ -755,12 +708,14 @@ function renderBenefitDetail(item, detail) {
 function syncDetailSaveButton() {
     if (!state.activeDetail) return;
     const saved = state.savedIds.has(state.activeDetail.id);
-    byId('benefitDetailSave').textContent = saved ? '♥ 관심 저장됨' : '♡ 관심에 저장';
+    byId('benefitDetailSave').innerHTML = `${icon('bookmark')} ${saved ? '저장됨' : '저장하기'}`;
+    byId('benefitDetailSave').setAttribute('aria-pressed', String(saved));
     byId('benefitDetailSave').classList.toggle('active', saved);
 }
 
 async function openBenefitDetail(item) {
     state.activeDetail = item;
+    rememberProgram(item);
     byId('benefitDetailTitle').textContent = item.title;
     byId('benefitDetailLoading').hidden = false;
     byId('benefitDetailContent').hidden = true;
@@ -848,7 +803,7 @@ async function submitFeedback(event) {
 function possibilityFor(item) {
     if (!state.diagnosis) return { tone:'unknown', icon:'?', title:'추가 확인이 필요해요', copy:'공식 대상 조건을 읽고 직접 확인해주세요.' };
     if (item.audienceStatus === 'MATCHED') {
-        return { tone:'candidate', icon:'✓', title:'선택한 조건과 일치하는 후보예요', copy:item.audienceReason || '지원대상 문구에 선택한 조건이 포함돼 있어요. 소득·재산 등 세부 기준은 공식 안내에서 확인해주세요.' };
+        return { tone:'candidate', icon:'shield', title:'선택한 조건과 일치하는 후보예요', copy:item.audienceReason || '지원대상 문구에 선택한 조건이 포함돼 있어요. 소득·재산 등 세부 기준은 공식 안내에서 확인해주세요.' };
     }
     if (item.audienceStatus === 'GENERAL') {
         return { tone:'unknown', icon:'?', title:'공식 기준을 한 번 더 확인해주세요', copy:item.audienceReason || '연령·가구 조건이 데이터에 명확하지 않아 공식 대상·선정기준을 직접 확인해야 해요.' };
@@ -868,7 +823,7 @@ function renderPreparationDetail(item, detail) {
     const possibility = possibilityFor(merged);
     const card = byId('possibilityCard');
     card.className = `possibility-card ${possibility.tone}`;
-    card.querySelector('i').textContent = possibility.icon;
+    card.querySelector('i').innerHTML = icon(possibility.tone === 'candidate' ? 'check' : 'search');
     card.querySelector('strong').textContent = possibility.title;
     card.querySelector('p').textContent = possibility.copy;
     byId('callScriptText').textContent = callScript(merged);
@@ -1050,6 +1005,18 @@ function openDiagnosis() {
 
 function renderDiagnosisSummary() {
     const section = byId('diagnosisSummary');
+    document.querySelector('.personal-banner').hidden = Boolean(state.diagnosis);
+    const sideTitle = document.querySelector('.my-panel h2');
+    const sideCopy = document.querySelector('.my-panel > p');
+    if (state.diagnosis) {
+        sideTitle.innerHTML = `${escapeHtml(state.diagnosis.region)} · ${escapeHtml(state.diagnosis.age)}<br>내 생활에 맞는 혜택.`;
+        sideCopy.textContent = `${state.diagnosis.household} · ${state.diagnosis.need} 조건으로 후보를 살펴보세요.`;
+        byId('diagnosisOpenSecondary').innerHTML = `내 조건 수정하기 ${icon('arrow')}`;
+    } else {
+        sideTitle.innerHTML = '내 조건을 알려주면<br>찾기가 더 쉬워져요.';
+        sideCopy.innerHTML = '정확한 소득이나 주민등록번호 없이<br>간단한 선택만으로 시작하세요.';
+        byId('diagnosisOpenSecondary').innerHTML = `내 혜택 후보 찾기 ${icon('arrow')}`;
+    }
     if (!state.diagnosis) { section.hidden = true; return; }
     section.hidden = false;
     byId('diagnosisTitle').textContent = `${state.diagnosis.region} · ${state.diagnosis.need} 혜택을 먼저 보여드려요`;
@@ -1065,12 +1032,10 @@ function restoreDiagnosisFilters() {
 
 function clearDiagnosis() {
     state.diagnosis = null;
-    state.quickFilter = 'all';
-    state.sortOrder = 'recommended';
-    if (byId('sortPrograms')) byId('sortPrograms').value = state.sortOrder;
+    if (state.quickFilter === 'matched') state.quickFilter = 'all';
     syncQuickFilterButtons();
     try { localStorage.removeItem('ansimlife.diagnosis'); } catch { /* Keep manual search available without storage. */ }
-    byId('diagnosisSummary').hidden = true;
+    renderDiagnosisSummary();
 }
 
 async function applyDiagnosis(event) {
@@ -1150,8 +1115,10 @@ function showApplications() {
     byId('applicationSection').scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
-function showSaved() {
+async function showSaved() {
     byId('savedSection').hidden = false;
+    byId('savedList').innerHTML = '<div class="loading-state"><i></i><span>저장한 혜택을 불러오고 있어요</span></div>';
+    await hydrateSaved();
     renderSaved();
     byId('savedSection').scrollIntoView({ behavior:'smooth', block:'start' });
 }
@@ -1184,13 +1151,16 @@ byId('quickFilters').addEventListener('click', event => {
 });
 byId('sortPrograms').addEventListener('change', event => {
     state.sortOrder = event.target.value;
-    renderPrograms(state.visibleItems);
+    loadPrograms();
 });
 byId('resetSearch').addEventListener('click', () => {
     byId('keyword').value = '';
     byId('region').value = '';
     byId('category').value = '';
     clearDiagnosis();
+    state.quickFilter = 'all'; state.sortOrder = 'recommended';
+    byId('sortPrograms').value = 'recommended';
+    syncQuickFilterButtons();
     syncCategorySelection('');
     loadPrograms();
     showToast('탐색 조건을 초기화했어요.');
@@ -1281,28 +1251,79 @@ byId('applicationList').addEventListener('click', async event => {
 byId('savedToggle').addEventListener('click', showSaved);
 byId('asideSaved').addEventListener('click', showSaved);
 ['applicationToggle','asideApplications','mobileApplications'].forEach(id => byId(id).addEventListener('click', showApplications));
-byId('heroFeatured').addEventListener('click', () => { const item = state.visibleItems.find(value => value.urgent) ?? state.visibleItems[0]; item ? openBenefitDetail(item) : showToast('혜택 정보를 불러오는 중이에요.'); });
+byId('heroFeatured').addEventListener('click', openDiagnosis);
 byId('accountButton').addEventListener('click', () => openAuth());
 byId('authClose').addEventListener('click', () => byId('authDialog').close());
 document.querySelectorAll('[data-auth-mode]').forEach(button => button.addEventListener('click', () => setAuthMode(button.dataset.authMode)));
 byId('authForm').addEventListener('submit', submitAuth);
-byId('logoutButton').addEventListener('click', async () => { await fetch('/api/auth/logout', { method:'POST' }); state.currentUser = null; state.signedIn = false; state.profile = null; syncAuthUI(); renderMemberProfile(); renderApplications(); renderPrograms(state.visibleItems); byId('authDialog').close(); showToast('로그아웃했어요.'); });
+byId('logoutButton').addEventListener('click', async () => { await fetch('/api/auth/logout', { method:'POST' }); state.currentUser = null; state.signedIn = false; state.profile = null; state.drafts = []; syncAuthUI(); renderMemberProfile(); renderApplications(); renderPrograms(state.visibleItems); byId('authDialog').close(); showToast('로그아웃했어요.'); });
 
 [byId('diagnosisDialog'), byId('authDialog'), byId('benefitDetailDialog'), byId('preparationDialog'), byId('compareDialog'), byId('feedbackDialog')].forEach(bindDialogBackdrop);
 
+function rememberProgram(item) {
+    state.recent = [{id:item.id, title:item.title, region:item.region, category:item.category},
+        ...state.recent.filter(value => value.id !== item.id)].slice(0,5);
+    writeStorage('ansimlife.recent', state.recent); renderRecent();
+}
+
+function renderRecent() {
+    byId('recentSection').hidden = !state.recent.length;
+    byId('recentList').innerHTML = state.recent.map(item => `<button type="button" class="recent-item" data-recent-id="${item.id}"><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.region || '전국')} · ${escapeHtml(item.category || '공공혜택')}</small></span>${icon('chevron')}</button>`).join('');
+}
+
+async function hydrateSaved() {
+    const ids = [...state.savedIds].filter(id => !state.items.some(item => item.id === id));
+    let index = 0;
+    await Promise.all(Array.from({length:Math.min(4,ids.length)}, async () => {
+        while (index < ids.length) {
+            const id = ids[index++];
+            try { const item = await loadProgramById(id); if (!item) state.savedIds.delete(id); }
+            catch { /* Retain saved ids during a temporary network failure. */ }
+        }
+    }));
+    writeStorage('ansimlife.saved', [...state.savedIds]); syncCounts();
+}
+
+byId('hideClosed').addEventListener('change', event => { state.hideClosed = event.target.checked; loadPrograms(); });
+byId('region').addEventListener('change', () => { clearDiagnosis(); loadPrograms(); });
+document.querySelectorAll('[data-keyword]').forEach(button => button.addEventListener('click', () => {
+    clearDiagnosis(); byId('keyword').value = button.dataset.keyword; loadPrograms();
+    byId('programsHeading').scrollIntoView({behavior:'smooth',block:'start'});
+}));
+document.querySelectorAll('[data-hide-section]').forEach(button => button.addEventListener('click', () => {
+    byId(button.dataset.hideSection).hidden = true;
+}));
+byId('dockCompare').addEventListener('click', openComparison);
+byId('recentList').addEventListener('click', async event => {
+    const button = event.target.closest('[data-recent-id]'); if (!button) return;
+    try { const item = await loadProgramById(button.dataset.recentId); if (item) openBenefitDetail(item); else showToast('현재 확인할 수 없는 혜택이에요.'); }
+    catch { showToast('혜택을 불러오지 못했어요. 다시 시도해주세요.'); }
+});
+byId('clearRecent').addEventListener('click', () => { state.recent=[]; writeStorage('ansimlife.recent',[]); renderRecent(); });
+byId('benefitDetailShare').addEventListener('click', async () => {
+    if (!state.activeDetail) return;
+    const url = new URL(window.location.origin); url.searchParams.set('benefit',state.activeDetail.id);
+    const data = {title:state.activeDetail.title,text:'안심생활에서 이 혜택을 확인해보세요.',url:url.toString()};
+    try { if (navigator.share) await navigator.share(data); else await copyText(data.url,'혜택 링크를 복사했어요.'); }
+    catch(error) { if (error.name !== 'AbortError') await copyText(data.url,'혜택 링크를 복사했어요.'); }
+});
+
 async function boot() {
-    restoreSharedComparison();
-    populateDiagnosisNeeds();
-    renderCategoryControls();
-    restoreDiagnosisFilters();
-    renderDiagnosisSummary();
-    syncCounts();
+    restoreSharedComparison(); populateDiagnosisNeeds(); renderCategoryControls();
+    restoreDiagnosisFilters(); renderDiagnosisSummary(); renderRecent(); syncCounts();
+    document.querySelectorAll('.section-label').forEach(label => {
+        const labels = {'BENEFIT DETAIL':'혜택 상세','BENEFIT GUIDE':'신청 준비','DOCUMENTS':'제출서류','CONTACT':'접수·문의','COMPARE':'혜택 비교','DATA CHECK':'정보 제보','MY ACCOUNT':'내 계정','WELCOME':'안심생활 계정','QUICK DIAGNOSIS':'맞춤 조건','5-MINUTE CHECK':'내 맞춤 조건'};
+        if (labels[label.textContent.trim()]) label.textContent = labels[label.textContent.trim()];
+    });
     await loadSession();
-    await Promise.all([loadPrograms(), loadMeta(), loadDrafts()]);
-    if (state.sharedComparisonPending) {
-        state.sharedComparisonPending = false;
-        const sharedCount = await openComparison();
-        if (sharedCount) showToast('공유한 비교 목록을 불러왔어요.');
+    await Promise.all([loadPrograms(),loadMeta(),loadDrafts()]);
+    hydrateSaved().then(renderSaved);
+    const sharedBenefit = Number(new URLSearchParams(location.search).get('benefit'));
+    if (Number.isSafeInteger(sharedBenefit) && sharedBenefit > 0) {
+        try { const item = await loadProgramById(sharedBenefit); if (item) await openBenefitDetail(item); else showToast('이 혜택은 현재 확인할 수 없어요. 다른 혜택을 둘러보세요.'); }
+        catch { showToast('공유한 혜택을 불러오지 못했어요.'); }
+    } else if (state.sharedComparisonPending) {
+        state.sharedComparisonPending = false; await openComparison();
     }
 }
 
