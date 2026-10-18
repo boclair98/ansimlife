@@ -697,7 +697,7 @@ docker run --rm -p 8080:8080 \
 `Dockerfile`은 Maven 빌드 단계와 JRE 실행 단계를 분리한 멀티스테이지 빌드를 사용합니다.
 
 화면 파일은 JAR 내부와 `/app/public/`에 함께 포함하고, 컨테이너의 정적 리소스 경로를 명시합니다. 빌드 시 `index.html`과 `app.js`가 없으면 실패하도록 해 API만 정상인 배포를 방지합니다. `/api/health` 확인에 더해 홈페이지·JavaScript·CSS·폰트도 HTTP 200인지 확인해야 합니다. `StaticAssetsTest`는 이 경로들의 회귀를 검사합니다.
-정적 응답은 `Cache-Control: no-cache`로 재검증해 이전 화면이 장기간 남는 것을 줄입니다. 폰트 파일도 브라우저에 저장한 뒤 변경 여부를 재확인할 수 있습니다.
+정적 응답은 `Cache-Control: no-cache`로 재검증하고, 화면 배포 시 HTML의 JS·CSS URL과 CSS의 `dialogs.css` URL 버전을 함께 올려 이전 화면이 남는 것을 줄입니다. 폰트 파일도 브라우저에 저장한 뒤 변경 여부를 재확인할 수 있습니다.
 
 ## Coders 배포
 
