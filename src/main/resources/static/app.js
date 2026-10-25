@@ -245,8 +245,8 @@ function renderCategoryControls(categoryCounts = {}) {
     byId('quickCategories').innerHTML = '<button class="active" type="button" data-category="">전체</button>' + categories
         .map(item => `<button type="button" data-category="${escapeHtml(item.name)}">${icon(item.icon)} ${escapeHtml(item.name)}</button>`).join('');
 
-    const categoryButton = item => '<button type="button" data-category="'+escapeHtml(item.name)+'" aria-pressed="false"><span class="category-icon">'+icon(item.icon)+'</span><strong>'+escapeHtml(item.name === '농림축산어업' ? '농어업' : item.name)+'</strong><small>'+escapeHtml(item.copy)+'</small><span class="category-arrow" aria-hidden="true">'+icon('arrow')+'</span></button>';
-    byId('categoryGrid').innerHTML = '<div class="category-primary-grid">'+categories.slice(0,4).map(categoryButton).join('')+'</div><details class="more-categories"><summary>전체 '+categories.length+'개 분야 보기</summary><div class="category-more-grid">'+categories.slice(4).map(categoryButton).join('')+'</div></details>';
+    const shortNames = {'생활안정':'생활','주거·자립':'주거','보육·교육':'교육','고용·창업':'일자리','보건·의료':'건강','행정·안전':'안전','임신·출산':'출산','보호·돌봄':'돌봄','문화·환경':'문화','농림축산어업':'농어업'};
+    byId('categoryGrid').innerHTML = '<div class="category-shortcuts">'+categories.map(item=>'<button type="button" data-category="'+escapeHtml(item.name)+'" aria-label="'+escapeHtml(item.name)+' 혜택" aria-pressed="false"><span class="category-icon">'+icon(item.icon)+'</span><strong>'+shortNames[item.name]+'</strong></button>').join('')+'</div>';
     syncCategorySelection(select.value);
 }
 
@@ -256,8 +256,6 @@ function populateDiagnosisNeeds() {
 }
 
 function syncCategorySelection(category) {
-    const more = byId('categoryGrid').querySelector('.more-categories');
-    if(more && categories.slice(4).some(item=>item.name===category)) more.open=true;
     document.querySelectorAll('[data-category]').forEach(button => {
         button.classList.toggle('active', button.dataset.category === category);
         button.setAttribute('aria-pressed', String(button.dataset.category === category));
@@ -1121,15 +1119,14 @@ function openDiagnosis() {
         document.querySelector(`input[name="household"][value="${CSS.escape(profile.household || '')}"]`)?.click();
     }
     byId('diagnosisDescription').textContent = state.signedIn
-        ? '저장된 조건을 고치면 다음 방문에도 같은 기준으로 추천해드려요.'
-        : '민감정보 없이 네 가지만 선택하면 됩니다. 로그인하면 조건을 저장할 수 있어요.';
+        ? '조건을 바꾸면 다음에도 같은 기준으로 찾아드려요.'
+        : '지역과 생활 상황을 골라주세요. 로그인하면 조건을 저장할 수 있어요.';
     byId('diagnosisSubmit').textContent = state.signedIn ? '조건 저장하고 추천 보기' : '내 혜택 후보 보기';
     openDialog(byId('diagnosisDialog'));
 }
 
 function renderDiagnosisSummary() {
     const section = byId('diagnosisSummary');
-    document.querySelector('.personal-banner').hidden = Boolean(state.diagnosis);
     const sideTitle = document.querySelector('.my-panel h2');
     const sideCopy = document.querySelector('.my-panel > p');
     if (state.diagnosis) {
@@ -1193,8 +1190,8 @@ function setAuthMode(mode) {
     state.authMode = mode;
     document.querySelectorAll('[data-auth-mode]').forEach(button => button.classList.toggle('active', button.dataset.authMode === mode));
     byId('displayNameField').hidden = mode !== 'register';
-    byId('authTitle').textContent = mode === 'register' ? '처음 오셨군요' : '다시 만나서 반가워요';
-    byId('authDescription').textContent = mode === 'register' ? '계정을 만들고 혜택 준비를 이어가세요.' : '이메일로 간편하게 로그인하세요.';
+    byId('authTitle').textContent = mode === 'register' ? '안심생활 시작하기' : '로그인';
+    byId('authDescription').textContent = mode === 'register' ? '계정을 만들고 준비 내용을 저장하세요.' : '저장한 준비 기록을 이어서 확인하세요.';
     byId('authSubmit').textContent = mode === 'register' ? '회원가입하고 시작하기' : '로그인';
     byId('authPassword').autocomplete = mode === 'register' ? 'new-password' : 'current-password';
     byId('authError').textContent = '';
@@ -1426,7 +1423,6 @@ byId('savedToggle').addEventListener('click', showSaved);
 byId('asideSaved').addEventListener('click', showSaved);
 byId('mobileSaved')?.addEventListener('click', showSaved);
 ['applicationToggle','asideApplications','mobileApplications'].forEach(id => byId(id).addEventListener('click', showApplications));
-byId('heroFeatured').addEventListener('click', openDiagnosis);
 byId('accountButton').addEventListener('click', () => openAuth());
 byId('authClose').addEventListener('click', () => byId('authDialog').close());
 document.querySelectorAll('[data-auth-mode]').forEach(button => button.addEventListener('click', () => setAuthMode(button.dataset.authMode)));

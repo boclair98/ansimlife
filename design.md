@@ -846,3 +846,50 @@ Design a clear, intentional and readable service with one dominant photographic 
 JavaScript 구문·기존 JS 테스트·Maven test/package → H2 로컬 앱에서 검색/분야/빈 결과/상세/저장/비교/맞춤/로그인/프로필/부분 체크/재접속 복원/진행 기록/일정 → 360×800·390×844·768×1024·1440×900 및 큰 글씨·키보드 → 공개 전 비밀값·이력 점검 → upstream main push → 실제 fork 동기화와 전체 SHA 비교 → 기존 Coders 프로젝트 새 배포 terminal 상태 확인 → 운영 리소스 해시와 실제 API/모바일·PC 검증. 운영 데이터 훼손·삭제 없이 테스트 계정으로만 준비 흐름을 확인한다. 기존 사용자 기록과 운영 키를 출력하지 않는다.
 
 운영 적용 검증(2026-10-25): Java 34개·JavaScript 7개 테스트와 Maven 패키징 통과. 최신 패키지에서 부분 체크·진행 상태·확인일 저장/재접속, 계정별 접근 차단, 잘못된 요청 후 기존 기록 보존 확인. 360·390·768·1440 화면과 작은 화면의 더 크게 글씨를 직접 검사. 모바일 정렬 축소, 비교 표 크기와 첫 열, 고정 비교 바로가기 여백, 어두운 패널 제목 대비, 홈 앵커·메뉴 전환, 전체 보기 초기화·저장 후 포커스를 보완했다. Enter/Space/Escape와 준비실 닫기 후 이어가기 버튼 포커스 복귀 확인. 운영 배포 후 실제 리소스·API·화면을 다시 검증한다.
+
+
+## Readability revision — 토스처럼 편하게 읽는 실제 서비스 (2026-10-25)
+
+### 요청과 근거
+사용자는 배포된 사진·짙은 녹색 디자인보다 토스처럼 보기 편한 화면을 요청했다. 이번 범위는 같은 운영 서비스의 전체 UI 수정이다. 현재 홈은 518px 사진 영역과 4개 짙은 분야 타일, 반복된 맞춤 배너 및 검색 도구가 혜택 목록보다 먼저 나타난다. 분야 6개는 펼치기 안에 있고 로그인·준비실에는 어두운 보조 패널이 남아 있다. 실제 Spring API와 독립 뷰·모달 구조는 이미 연결돼 있으므로 유지한다. 이번 결정은 흰 화면에서 검색과 정보를 먼저 읽고 주요 행동만 파란색으로 강조하는 한 가지 방향이다.
+
+### Resolved inputs
+- Topic: 안심생활 공공혜택 탐색·비교·신청 준비의 읽기 편한 전체 서비스.
+- Offer: 공식 혜택을 찾고 저장·비교하며 계정에 준비 체크와 진행 기록을 이어가는 서비스.
+- Audience: 청년부터 고령자까지 다양한 연령의 한국어 사용자.
+- Primary user action: 검색어와 지역을 고르고 실제 혜택 결과를 찾는다.
+- Deliverable: 기존 vanilla HTML/CSS/JavaScript와 Java/Spring API를 유지한 실제 서비스 전체 UI 수정 1개.
+- Style direction: 밝고 단순한 한국어 제품 화면, 간결한 제목·부드러운 회색·주요 행동의 파란색·넉넉한 목록 간격.
+- Tonal key: Light. 사진 배경과 어두운 정보 패널을 제거한다.
+- Icon policy: 기존 자체 SVG 아이콘만 사용한다. 토스 로고·전용 폰트·보호된 이미지·화면을 복제하지 않는다.
+- Proof assets: 실제 혜택 API·출처·기준일·계정 기록만 사용한다. 마케팅 사진과 가짜 지표는 사용하지 않는다.
+- Motion intensity: Minimal. 조작 피드백과 reduced-motion 설정만 유지한다.
+
+### Composition contract
+- Hero archetype: typography-led, asymmetrical left-aligned search introduction.
+- First-viewport structure: 흰 헤더 72px, 왼쪽 제목 44px와 한 문장 설명, 회색 검색어/지역 폼과 파란 검색 버튼. 아래에 10개 짧은 분야 아이콘을 5열로 배치한다. 반복 맞춤 배너는 없애고 실제 혜택 목록의 시작을 당긴다.
+- Primary visual/proof artifact: 사진 없이 실제 검색 컨트롤과 API 혜택 목록.
+- Interaction behavior: 검색·지역·10개 분야는 기존 검색 함수와 API를 그대로 사용한다. 맞춤 조건은 기존 진단창, 저장·비교·준비·계정·제보도 기존 처리 함수를 유지한다. 검색 저장·공유는 펼침형 보조 도구에 배치하고 저장한 조건 수를 표시한다.
+- Reuse boundary: 공통 색상·폰트·버튼·입력·읽기 표면을 모든 뷰/모달에 공유한다. 기존 라우팅과 데이터 계약은 유지하고 홈 정보 배치만 재구성한다.
+
+### 색상·글자·간격
+색상 역할은 자체 서비스 토큰으로 정한다. 본문 #191f28, 보조 #6b7684, 배경 #f5f6f8, 표면 #ffffff, 입력·보조 영역 #f2f4f6, 선 #e5e8eb, 주요 행동 #3182f6, 선택 배경 #e8f3ff, hover #1b64da. 상태의 녹색·주황색은 의미를 구분할 때만 사용한다. Pretendard 로컬 폰트 유지. 본문 18px/1.75, 보조 16px/1.7, 분야 이름 15px/1.6(짧은 2~3음절), 카드 제목22px/1.5, 페이지 제목32px/1.45(모바일28px), 홈44px/1.35(모바일32px). 글자 크기 3단계 그대로 유지. 콘텐츠1080px, 모바일여백20px, 간격8/12/16/24/32/48px, 반경12~20px. 주요 버튼54px 이상, 보조44px 이상. 문장 줄바꿈 keep-all과 안전한 긴 문자열 줄바꿈을 유지한다.
+
+### 페이지별 구성
+홈은 명확한 검색 소개, 모든 분야, 결과 제목·필터, 보조 검색 도구, 실제 혜택 카드 순서다. 저장과 준비 현황은 짧은 제목과 넉넉한 흰 목록으로 정리한다. 상세는 대상·지원·기준·서류·문의·공식 링크의 위계를 유지하며 제목과 색 면적을 줄인다. 준비실의 문맥 패널은 밝은 회색으로 바꾸고 실제 체크·단계·저장·진행상태·확인일·일정 기능을 보존한다. 로그인은 모바일에서 반복 마케팅 문구를 줄여 필드와 제출 버튼이 먼저 보이게 한다. 맞춤·비교·제보 제목을 짧게 하고 모든 폼을 같은 크기와 간격으로 정리한다. 설정도 같은 흰 표면·선택 색상을 사용한다. 빈 결과·로딩·오류·성공·키보드 포커스·모달 닫기/복귀를 유지한다.
+
+### 참고 자료
+공식 https://www.tossbank.com/ 와 https://developers-apps-in-toss.toss.im/design/consumer-ux-guide 및 https://developers-apps-in-toss.toss.im/design/prepare/design 을 참고한다. 핵심 정보와 행동이 장식보다 먼저 읽히고 간격이 일관돼야 한다는 원칙을 적용한다. 여기서 선택한 픽셀값·색상은 안심생활의 자체 결정이며 TDS 공식 토큰이라고 주장하지 않는다. TDS 설치·스택 전환은 하지 않는다.
+
+### Filled generation prompt
+Create one readable production page system for 안심생활 공공혜택 탐색과 신청 준비.
+Inputs: Topic=전 연령의 공공혜택 발견·저장·비교·계정별 준비; Offer=공식 정보를 쉽게 이해하고 실제 기관 신청을 준비; Audience=다양한 연령의 한국어 사용자; Primary user action=혜택 검색; Deliverable=기존 HTML/CSS/JavaScript와 실제 Spring API 유지; Style direction=밝은 흰색 화면·간결한 제목·부드러운 회색 입력·파란 주요 행동·여유 있는 목록; Tonal key=Light; Icon policy=기존 자체 SVG; Proof assets=실제 API와 출처만; Motion intensity=Minimal.
+Use a clear typography-led introduction with the headline 내게 맞는 혜택을, 쉽게 찾아보세요. Supporting copy is 지역과 생활 상황에 맞는 공공혜택을 한곳에서 확인해요. Primary CTA 혜택 찾기 submits the existing searchForm. Secondary CTA 내 상황으로 찾기 opens the existing diagnosisDialog. Remove the photographic hero and dark tiles. Show all ten categories with short visible labels and full accessible labels. Let results and actions have a clear reading order. Use restrained white and gray surfaces, deliberate whitespace, comfortable Korean typography and consistent form/close controls. Do not copy Toss assets or invent proof. Preserve search filters, pagination, saved searches, sharing, bookmarks, comparisons, recent history, login, profile, draft checklist, journey status, next date, calendar export, official details and feedback. Keep real loading/empty/error/success handling, touch areas, visible focus, Escape and focus return, reduced-motion and large text. Use no new framework or dependency.
+
+### Output target and validation
+수정: static/index.html, service.css, app.js(분야 표시 및 중복 진입점 제거), workspace.js(저장 도구 표시), favicon.svg, README.md. API·인증·데이터·저장키 유지. 프로토타입은 역사적 참고 자료로 보존.
+구문 검사·JavaScript 테스트·최소 패키징 → 실제 API 로컬 화면에서 검색·모든 분야·도구 펼치기·저장·비교·맞춤·계정·준비 기록 복원 → 360×800·390×844·768×1024·1440×900 및 큰 글씨·키보드·스크린샷 → 비밀값 검사 → 같은 서비스의 기존 배포 요청 범위에서 upstream/fork 동기화와 운영 재배포·검증. 검증되지 않은 접근성 도구·확대 결과를 완료로 주장하지 않는다.
+
+구현 배치 보완: PC 1100px 이상은 10개 분야를 10열 한 줄로, 그 아래는 짧은 이름을 5열 두 줄로 표시한다. 검색 소개는 PC 한 줄 제목, 모바일 두 줄 제목으로 하고 반복 소개 라벨은 줄인다. 실제 보조 문장은 “정부·지자체 혜택을 한곳에서 확인해요.”, 맞춤 CTA는 “맞춤 찾기”, 지역 초기값은 “모든 지역”으로 간결하게 정리한다.
+
+가독성 보완: 작은 글자 대비를 위해 주요 행동 파란색을 #246fe5, 작은 링크·선택 텍스트는 #1b64da, 보조 본문은 #626e7b로 조정한다. 흰 버튼 글자와 주요 배경의 계산 대비 및 연한 회색 위 보조 본문의 계산 대비를 확인한다. 공식 TDS 토큰이 아닌 자체 접근성 조정이다.

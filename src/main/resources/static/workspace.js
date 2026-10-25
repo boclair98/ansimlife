@@ -20,6 +20,7 @@
         byId('savedSearchList').innerHTML = presets.map((preset, index) => `<div class="saved-search-item"><button type="button" data-search-index="${index}" title="${escapeHtml(core.searchLabel(preset.criteria))}">${icon('search')}<span>${escapeHtml(core.searchLabel(preset.criteria))}</span></button><button type="button" data-remove-search="${index}" aria-label="${escapeHtml(core.searchLabel(preset.criteria))} 검색 조건 삭제">${icon('close')}</button></div>`).join('');
         byId('savedSearchEmpty').hidden = presets.length > 0;
         byId('savedSearchList').hidden = presets.length === 0;
+        byId('searchOptionsLabel').textContent = presets.length ? '저장한 검색 조건 '+presets.length+'개' : '검색 조건 저장·공유';
         searchChanged();
     }
     function searchChanged() {
