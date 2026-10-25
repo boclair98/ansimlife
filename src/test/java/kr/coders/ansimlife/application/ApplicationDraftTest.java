@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -18,6 +19,7 @@ class ApplicationDraftTest {
 
         assertThat(draft.getStatus()).isEqualTo("READY_TO_SUBMIT");
         assertThat(draft.getCompletionPercent()).isEqualTo(100);
+        assertThat(draft.getCheckedItems()).containsExactly("target", "documents", "period", "route");
         assertThat(draft.getJourneyStatus()).isEqualTo("PREPARING");
         assertThat(draft.getApplicantName()).isNull();
         assertThat(draft.getPhone()).isNull();
@@ -58,5 +60,37 @@ class ApplicationDraftTest {
 
         assertThatThrownBy(() -> draft.updateJourney("SUBMITTED", null, null))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void partialChecklistPersistsOrderedItemsAndProgress() {
+        ApplicationDraft draft = new ApplicationDraft("7", 11L);
+
+        draft.update(true, false, List.of("route", "target"));
+
+        assertThat(draft.getCheckedItems()).containsExactly("target", "route");
+        assertThat(draft.isDocumentsReady()).isFalse();
+        assertThat(draft.getCompletionPercent()).isEqualTo(60);
+        assertThat(draft.getStatus()).isEqualTo("DRAFT");
+
+        draft.update(true, false, List.of("target", "documents", "period", "route"));
+        assertThat(draft.isDocumentsReady()).isTrue();
+        assertThat(draft.getCompletionPercent()).isEqualTo(100);
+        assertThat(draft.getStatus()).isEqualTo("READY_TO_SUBMIT");
+    }
+
+    @Test
+    void checklistRejectsUnknownAndDuplicateItemsWithoutChangingSavedState() {
+        ApplicationDraft draft = new ApplicationDraft("7", 11L);
+        draft.update(true, false, List.of("target"));
+
+        assertThatThrownBy(() -> draft.update(false, true, List.of("target", "unknown")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> draft.update(false, true, List.of("target", "target")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> draft.update(false, true, java.util.Arrays.asList("target", null)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(draft.getCheckedItems()).containsExactly("target");
+        assertThat(draft.isEligibilityConfirmed()).isTrue();
     }
 }

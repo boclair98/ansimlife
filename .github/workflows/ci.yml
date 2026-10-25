@@ -27,5 +27,19 @@ jobs:
       - name: Run tests
         run: mvn -B test
 
+      - name: Set up Node for browser-independent logic tests
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Test search and calendar logic
+        run: node --test src/test/js/workflow-core.test.cjs
+
+      - name: Check browser script syntax
+        run: |
+          for file in app.js workspace.js workflow-core.js service-ui.js; do
+            node --check "src/main/resources/static/$file"
+          done
+
       - name: Build artifact
         run: mvn -B -DskipTests package

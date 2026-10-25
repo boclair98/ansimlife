@@ -1,10 +1,13 @@
 const byId = id => document.getElementById(id);
 const icon = name => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 
+function preferredScrollBehavior() { return matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'; }
+
 const state = {
     items: [],
     visibleItems: [],
     drafts: [],
+    draftsError: null,
     savedIds: readIdSet('ansimlife.saved'),
     comparisonIds: readIdSet('ansimlife.compare'),
     detailCache: new Map(),
@@ -17,16 +20,18 @@ const state = {
     loading: false,
     signedIn: false,
     currentUser: null,
+    authGeneration: 0,
     profile: null,
     authMode: 'login',
     activeStep: 1,
-    diagnosis: readStorage('ansimlife.diagnosis', null),
+    preparationEpoch: 0,
+    diagnosis: readDiagnosis(),
     quickFilter: 'all',
     sortOrder: 'recommended',
     sharedComparisonPending: false,
     hideClosed: true,
     searchController: null,
-    recent: readStorage('ansimlife.recent', []).filter(item => Number.isSafeInteger(item?.id)).slice(0, 5)
+    recent: readRecent()
 };
 
 const categories = [
@@ -54,6 +59,7 @@ const journeyLabels = {
     REJECTED: '미선정으로 기록',
     INSTITUTION_CONFIRMED: '기관 접수 확인 완료'
 };
+const checklistIds = ['target', 'documents', 'period', 'route'];
 
 function readStorage(key, fallback) {
     try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
@@ -69,7 +75,22 @@ function readIdSet(key) {
     const values = readStorage(key, []);
     return new Set((Array.isArray(values) ? values : [])
         .map(Number)
-        .filter(value => Number.isInteger(value) && value > 0));
+        .filter(value => Number.isSafeInteger(value) && value > 0));
+}
+
+function readRecent() {
+    const values = readStorage('ansimlife.recent', []);
+    return (Array.isArray(values) ? values : [])
+        .filter(item => Number.isSafeInteger(item?.id) && item.id > 0 && typeof item.title === 'string')
+        .slice(0, 5);
+}
+
+function readDiagnosis() {
+    const value = readStorage('ansimlife.diagnosis', null);
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const fields = ['region', 'age', 'need', 'household'];
+    if (fields.some(field => typeof value[field] !== 'string' || !value[field].trim())) return null;
+    return Object.fromEntries([...fields, 'incomeRange'].map(field => [field, typeof value[field] === 'string' ? value[field] : '']));
 }
 
 function restoreSharedComparison() {
@@ -99,7 +120,9 @@ function channelClass(mode) { return String(mode ?? 'PREPARATION_ONLY').toLowerC
 function formatNumber(value) { return Number(value || 0).toLocaleString('ko-KR'); }
 function formatDateTime(value) {
     if (!value) return '';
-    return new Intl.DateTimeFormat('ko-KR', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }).format(new Date(value));
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '날짜 확인 필요';
+    return new Intl.DateTimeFormat('ko-KR', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }).format(date);
 }
 function formatFreshness(value) {
     const date = new Date(value);
@@ -109,12 +132,15 @@ function formatFreshness(value) {
 }
 function formatDate(value) {
     if (!value) return '';
-    return new Intl.DateTimeFormat('ko-KR', { year:'numeric', month:'long', day:'numeric' }).format(new Date(`${value}T00:00:00`));
+    const date = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return '날짜 확인 필요';
+    return new Intl.DateTimeFormat('ko-KR', { year:'numeric', month:'long', day:'numeric' }).format(date);
 }
 
 async function errorMessage(response, fallback) {
     const body = await response.json().catch(() => ({}));
-    return body.detail || body.message || fallback;
+    const message = body.detail || body.message;
+    return typeof message === 'string' && message.trim() ? message : fallback;
 }
 
 function showToast(message) {
@@ -125,8 +151,18 @@ function showToast(message) {
     showToast.timer = setTimeout(() => toast.classList.remove('show'), 2600);
 }
 
+const dialogReturnFocus = new WeakMap();
+
 function openDialog(dialog) {
-    if (dialog && !dialog.open) dialog.showModal();
+    if (dialog && !dialog.open) {
+        const trigger = document.activeElement;
+        const attributes = ['data-draft-action', 'data-program-id', 'data-action', 'data-id'];
+        const selector = trigger?.id ? `#${CSS.escape(trigger.id)}` : attributes
+            .filter(name => trigger?.hasAttribute(name))
+            .map(name => `[${name}="${CSS.escape(trigger.getAttribute(name))}"]`).join('');
+        dialogReturnFocus.set(dialog, { trigger, selector });
+        dialog.showModal();
+    }
 }
 
 function applicationChannel(item) {
@@ -137,6 +173,15 @@ function applicationChannel(item) {
         directAvailable: false,
         officialUrl: item?.applyUrl ?? null
     };
+}
+
+function officialUrlFor(item) {
+    return window.AnsimWorkflow.safeExternalUrl(item?.onlineUrl, applicationChannel(item).officialUrl, item?.applyUrl);
+}
+
+function routeDescription(item, channel) {
+    return officialUrlFor(item) || channel.mode === 'NO_APPLICATION' ? channel.description
+        : `${channel.description} 연결할 온라인 주소가 없어 신청 방법과 담당기관 문의처를 확인해주세요.`;
 }
 
 function deadlineMeta(item) {
@@ -184,7 +229,8 @@ function syncCounts() {
 
 function syncAuthUI() {
     const button = byId('accountButton');
-    button.textContent = state.signedIn ? `${state.currentUser.displayName}님` : '로그인';
+    button.textContent = state.signedIn ? '내 계정' : '로그인';
+    button.setAttribute('aria-label', state.signedIn ? '내 계정 보기' : '로그인');
     button.classList.toggle('signed-in', state.signedIn);
     syncPreparationActions();
 }
@@ -199,12 +245,8 @@ function renderCategoryControls(categoryCounts = {}) {
     byId('quickCategories').innerHTML = '<button class="active" type="button" data-category="">전체</button>' + categories
         .map(item => `<button type="button" data-category="${escapeHtml(item.name)}">${icon(item.icon)} ${escapeHtml(item.name)}</button>`).join('');
 
-    byId('categoryGrid').innerHTML = categories.map(item => `
-        <button type="button" data-category="${escapeHtml(item.name)}">
-            <span class="category-icon">${icon(item.icon)}</span>
-            <span><strong>${escapeHtml(item.name === '농림축산어업' ? '농어업' : item.name)}</strong><small>${categoryCounts[item.name] ? `${formatNumber(categoryCounts[item.name])}개` : item.copy}</small></span>
-            <i>→</i>
-        </button>`).join('');
+    const categoryButton = item => '<button type="button" data-category="'+escapeHtml(item.name)+'" aria-pressed="false"><span class="category-icon">'+icon(item.icon)+'</span><strong>'+escapeHtml(item.name === '농림축산어업' ? '농어업' : item.name)+'</strong><small>'+escapeHtml(item.copy)+'</small><span class="category-arrow" aria-hidden="true">'+icon('arrow')+'</span></button>';
+    byId('categoryGrid').innerHTML = '<div class="category-primary-grid">'+categories.slice(0,4).map(categoryButton).join('')+'</div><details class="more-categories"><summary>전체 '+categories.length+'개 분야 보기</summary><div class="category-more-grid">'+categories.slice(4).map(categoryButton).join('')+'</div></details>';
     syncCategorySelection(select.value);
 }
 
@@ -214,8 +256,11 @@ function populateDiagnosisNeeds() {
 }
 
 function syncCategorySelection(category) {
+    const more = byId('categoryGrid').querySelector('.more-categories');
+    if(more && categories.slice(4).some(item=>item.name===category)) more.open=true;
     document.querySelectorAll('[data-category]').forEach(button => {
         button.classList.toggle('active', button.dataset.category === category);
+        button.setAttribute('aria-pressed', String(button.dataset.category === category));
     });
 }
 
@@ -324,7 +369,10 @@ function renderPrograms(items) {
         byId('emptyAction').addEventListener('click', () => needsDiagnosis ? openDiagnosis() : byId('resetSearch').click());
         return;
     }
-    grid.innerHTML = items.map(item => {
+    grid.innerHTML = items.map(programCard).join('');
+}
+
+function programCard(item) {
         const category = normalizedCategory(item.category);
         const deadline = deadlineMeta(item);
         const saved = state.savedIds.has(item.id);
@@ -339,10 +387,10 @@ function renderPrograms(items) {
             <h3><button class="card-title-button" data-action="detail" data-id="${item.id}" type="button">${escapeHtml(item.title)}</button></h3>
             <span class="card-location">${icon('pin')}${escapeHtml(item.region || '전국')}</span>
             <p class="benefit-value">${escapeHtml(item.benefit || item.summary || '지원 내용은 공식 상세 안내에서 확인해주세요.')}</p>
-            ${reason}${progress}
+            <dl class="card-target"><dt>대상</dt><dd>${escapeHtml(item.target || '공식 상세에서 확인해주세요.')}</dd></dl>${reason}${progress}
             <div class="benefit-card-bottom"><span class="deadline-chip ${deadline.status.toLowerCase()}">${escapeHtml(label)}</span><button class="compare-button ${compared ? 'active' : ''}" data-action="compare" data-id="${item.id}" type="button" aria-pressed="${compared}" aria-label="${escapeHtml(item.title)} ${compared ? '비교에서 빼기' : '비교에 담기'}">${icon(compared ? 'check' : 'compare')}${compared ? '비교에 담았어요' : '비교하기'}</button></div>
         </article>`;
-    }).join('');
+
 }
 
 function selectedComparisonItems() {
@@ -375,7 +423,7 @@ function renderComparison() {
         ['신청 기간', item => item.deadline || '공식 안내 확인'],
         ['신청 방식', item => applicationChannel(item).label]
     ];
-    table.innerHTML = `<div class="compare-columns"><div class="compare-label compare-label-head">비교 항목</div>${items.map(item => `<div class="compare-program-head"><span>${escapeHtml(normalizedCategory(item.category))}</span><strong>${escapeHtml(item.title)}</strong><button type="button" class="compare-remove" data-compare-action="remove" data-id="${item.id}">비교에서 빼기</button></div>`).join('')}</div>${rows.map(([label, getter]) => `<div class="compare-row"><div class="compare-label">${escapeHtml(label)}</div>${items.map(item => `<div class="compare-cell">${comparisonValue(getter(item))}</div>`).join('')}</div>`).join('')}<div class="compare-row compare-row-action"><div class="compare-label">다음 행동</div>${items.map(item => `<div class="compare-cell"><button type="button" class="ghost-button compare-detail" data-compare-action="detail" data-id="${item.id}">상세 보기 <span>→</span></button></div>`).join('')}</div>`;
+    table.innerHTML = `<div class="compare-columns" role="row"><div class="compare-label compare-label-head" role="columnheader">비교 항목</div>${items.map(item => `<div class="compare-program-head" role="columnheader"><span>${escapeHtml(normalizedCategory(item.category))}</span><strong>${escapeHtml(item.title)}</strong><button type="button" class="compare-remove" data-compare-action="remove" data-id="${item.id}">비교에서 빼기</button></div>`).join('')}</div>${rows.map(([label, getter]) => `<div class="compare-row" role="row"><div class="compare-label" role="rowheader">${escapeHtml(label)}</div>${items.map(item => `<div class="compare-cell" role="cell">${comparisonValue(getter(item))}</div>`).join('')}</div>`).join('')}<div class="compare-row compare-row-action" role="row"><div class="compare-label" role="rowheader">다음 행동</div>${items.map(item => `<div class="compare-cell" role="cell"><button type="button" class="ghost-button compare-detail" data-compare-action="detail" data-id="${item.id}">상세 보기 <span>→</span></button></div>`).join('')}</div>`;
 }
 
 async function shareComparison() {
@@ -406,10 +454,11 @@ async function openComparison() {
     openDialog(byId('compareDialog'));
     byId('compareTable').innerHTML = '<div class="compare-loading" role="status"><i></i><span>비교 정보를 준비하고 있어요</span></div>';
     const missingIds = [...state.comparisonIds].filter(id => !state.items.some(item => item.id === Number(id)));
-    const loaded = await Promise.all(missingIds.map(loadProgramById));
-    loaded.forEach((item, index) => {
-        if (!item) state.comparisonIds.delete(Number(missingIds[index]));
+    const loaded = await Promise.allSettled(missingIds.map(loadProgramById));
+    loaded.forEach((result, index) => {
+        if (result.status === 'fulfilled' && !result.value) state.comparisonIds.delete(Number(missingIds[index]));
     });
+    if (loaded.some(result => result.status === 'rejected')) showToast('일부 비교 정보를 불러오지 못했어요. 잠시 후 다시 열어주세요.');
     writeStorage('ansimlife.compare', [...state.comparisonIds]);
     syncCounts();
     renderComparison();
@@ -437,6 +486,7 @@ function setQuickFilter(filter) {
     state.quickFilter = filter;
     syncQuickFilterButtons();
     if (filter === 'matched' && !state.diagnosis) {
+        window.AnsimWorkspace?.searchChanged();
         state.searchController?.abort();
         state.loading = false;
         setProgramBusy(false);
@@ -451,6 +501,7 @@ function setQuickFilter(filter) {
 }
 
 async function loadPrograms(page = 0, append = false) {
+    if (!append && page === 0) window.AnsimWorkspace?.searchChanged();
     if (append && state.loading) return;
     if (state.quickFilter === 'matched' && !state.diagnosis) {
         state.searchController?.abort();
@@ -502,6 +553,7 @@ async function loadPrograms(page = 0, append = false) {
 }
 
 function toggleSaved(id) {
+    const previousFocus = document.activeElement;
     state.savedIds.has(id) ? state.savedIds.delete(id) : state.savedIds.add(id);
     writeStorage('ansimlife.saved', [...state.savedIds]);
     showToast(state.savedIds.has(id) ? '저장했어요. 저장한 혜택에서 다시 볼 수 있어요.' : '저장을 해제했어요.');
@@ -509,11 +561,16 @@ function toggleSaved(id) {
     renderPrograms(state.visibleItems);
     renderSaved();
     if (state.activeDetail?.id === id) syncDetailSaveButton();
+    if(previousFocus?.matches('[data-action="save"]') && !previousFocus.isConnected) {
+        const list = byId(document.body.dataset.view === 'saved' ? 'savedList' : 'programList');
+        const replacement = list.querySelector('[data-action="save"][data-id="'+id+'"]');
+        (replacement || (document.body.dataset.view === 'saved' ? byId('savedSection').querySelector('h1') : null))?.focus({preventScroll:true});
+    }
 }
 
 function renderSaved() {
-    const items = state.items.filter(item => state.savedIds.has(item.id));
-    byId('savedList').innerHTML = items.length ? items.map(item => `<article><div><small>${escapeHtml(item.region)} · ${escapeHtml(normalizedCategory(item.category))}</small><strong>${escapeHtml(item.title)}</strong></div><div><button class="ghost-button" data-action="detail" data-id="${item.id}" type="button">상세</button><button class="primary-button" data-action="prepare" data-id="${item.id}" type="button">준비</button></div></article>`).join('') : '<div class="empty-inline">아직 저장한 혜택이 없어요.</div>';
+    const items = [...state.savedIds].map(id => ({id,item:state.items.find(value=>value.id===id)}));
+    byId('savedList').innerHTML = items.length ? items.map(({id,item}) => item ? programCard(item) : '<article class="benefit-card saved-unavailable"><h2>혜택 정보를 불러오지 못했어요</h2><p>혜택 번호 '+id+'</p><div><button class="ghost-button" data-action="retry-saved" data-id="'+id+'" type="button">다시 불러오기</button><button class="text-button" data-action="remove-saved" data-id="'+id+'" type="button">저장 해제</button></div></article>').join('') : '<div class="empty-state"><span>'+icon('bookmark')+'</span><h2>다시 볼 혜택을 모아보세요</h2><p>혜택 카드의 저장 버튼을 누르면<br>이곳에서 다시 확인할 수 있어요.</p><button class="primary-button" type="button" data-return-discover>혜택 찾아보기 '+icon('arrow')+'</button></div>';
 }
 
 function draftStatus(draft) {
@@ -524,6 +581,7 @@ function draftStatus(draft) {
 }
 
 function renderApplications() {
+    if (window.AnsimWorkspace) return window.AnsimWorkspace.renderApplications();
     syncCounts();
     byId('applicationList').innerHTML = state.drafts.length ? state.drafts.map(draft => {
         const status = draftStatus(draft);
@@ -565,10 +623,13 @@ async function loadProfile() {
         renderMemberProfile();
         return null;
     }
+    const authGeneration = state.authGeneration;
     try {
         const response = await fetch('/api/profile');
         if (!response.ok) throw new Error();
-        state.profile = await response.json();
+        const profile = await response.json();
+        if (authGeneration !== state.authGeneration) return null;
+        state.profile = profile;
         const savedDiagnosis = profileToDiagnosis(state.profile);
         if (savedDiagnosis) {
             state.diagnosis = savedDiagnosis;
@@ -579,6 +640,7 @@ async function loadProfile() {
         renderMemberProfile();
         return state.profile;
     } catch {
+        if (authGeneration !== state.authGeneration) return null;
         state.profile = null;
         renderMemberProfile();
         return null;
@@ -587,6 +649,7 @@ async function loadProfile() {
 
 async function saveProfile(profile) {
     if (!state.signedIn) return true;
+    const authGeneration = state.authGeneration;
     try {
         const response = await fetch('/api/profile', {
             method: 'PUT',
@@ -600,7 +663,9 @@ async function saveProfile(profile) {
             })
         });
         if (!response.ok) throw new Error(await errorMessage(response, '맞춤 조건을 저장하지 못했어요.'));
-        state.profile = await response.json();
+        const saved = await response.json();
+        if (authGeneration !== state.authGeneration) return false;
+        state.profile = saved;
         renderMemberProfile();
         return true;
     } catch (error) {
@@ -620,12 +685,20 @@ async function loadSession() {
 }
 
 async function loadDrafts() {
-    if (!state.signedIn) { state.drafts = []; renderApplications(); return; }
+    if (!state.signedIn) { state.drafts = []; state.draftsError = null; renderApplications(); return; }
+    const authGeneration = state.authGeneration;
     try {
         const response = await fetch('/api/applications/drafts');
-        if (!response.ok) throw new Error();
-        state.drafts = await response.json();
-    } catch { state.drafts = []; }
+        if (!response.ok) throw new Error(await errorMessage(response, '진행 중인 혜택을 불러오지 못했어요.'));
+        const drafts = await response.json();
+        if (!Array.isArray(drafts)) throw new Error('진행 중인 혜택 응답을 확인하지 못했어요.');
+        if (!state.signedIn || authGeneration !== state.authGeneration) return;
+        state.drafts = drafts;
+        state.draftsError = null;
+    } catch (error) {
+        if (!state.signedIn || authGeneration !== state.authGeneration) return;
+        state.draftsError = error.message || '진행 중인 혜택을 불러오지 못했어요.';
+    }
     renderApplications();
     renderPrograms(state.visibleItems);
 }
@@ -634,7 +707,8 @@ async function loadProgramById(programId) {
     let item = state.items.find(value => value.id === Number(programId));
     if (item) return item;
     const response = await fetch(`/api/programs/${programId}`);
-    if (!response.ok) return null;
+    if (response.status === 404 || response.status === 410) return null;
+    if (!response.ok) throw new Error(await errorMessage(response, '혜택을 불러오지 못했어요.'));
     item = await response.json();
     state.items.push(item);
     return item;
@@ -650,7 +724,6 @@ async function fetchDetail(item) {
         return detail;
     } catch {
         const fallback = { ...item, sourceLive:false, onlineUrl:item.applyUrl, application:applicationChannel(item) };
-        state.detailCache.set(item.id, fallback);
         return fallback;
     }
 }
@@ -698,10 +771,12 @@ function renderBenefitDetail(item, detail) {
     route.className = `route-banner route-${channelClass(channel.mode)}`;
     route.querySelector('i').textContent = channel.directAvailable ? '✓' : channel.mode === 'NO_APPLICATION' ? 'i' : '↗';
     route.querySelector('strong').textContent = channel.label;
-    route.querySelector('p').textContent = channel.description;
+    route.querySelector('p').textContent = routeDescription(merged, channel);
     const official = byId('benefitDetailOfficial');
-    official.href = merged.onlineUrl || channel.officialUrl || merged.applyUrl || '#';
-    official.hidden = official.href.endsWith('#');
+    const officialUrl = officialUrlFor(merged);
+    official.hidden = !officialUrl;
+    if (officialUrl) official.href = officialUrl;
+    else official.removeAttribute('href');
     byId('benefitDetailNotice').textContent = merged.sourceLive ? `행정안전부 공공서비스 상세정보${merged.sourceUpdatedAt ? ` · 수정 ${merged.sourceUpdatedAt}` : ''}` : '현재 저장된 정보를 표시합니다. 최종 조건은 공식 안내에서 확인해주세요.';
     syncDetailSaveButton();
     byId('benefitDetailLoading').hidden = true;
@@ -830,7 +905,7 @@ function renderPreparationDetail(item, detail) {
     card.querySelector('strong').textContent = possibility.title;
     card.querySelector('p').textContent = possibility.copy;
     byId('callScriptText').textContent = callScript(merged);
-    renderChecklist(merged);
+    renderChecklist(merged, true);
     updateReview();
 }
 
@@ -844,18 +919,29 @@ function checklistItems(item) {
     ];
 }
 
-function renderChecklist(item) {
+function renderChecklist(item, preserveCurrent = false) {
     const draft = state.drafts.find(value => value.programId === item.id);
-    const savedChecks = draft?.documentsReady ? [0,1,2,3] : readStorage(`ansimlife.checks.${item.id}`, []);
+    const localChecks = readStorage(`ansimlife.checks.${item.id}`, []);
+    const savedChecks = preserveCurrent
+        ? [...document.querySelectorAll('#checklist input:checked')].map(input => Number(input.dataset.checkIndex))
+        : draft && Array.isArray(draft.checkedItems)
+            ? draft.checkedItems.map(id => checklistIds.indexOf(id)).filter(index => index >= 0)
+            : draft?.documentsReady ? [0,1,2,3]
+            : Array.isArray(localChecks) ? localChecks.filter(index => Number.isInteger(index) && index >= 0 && index < checklistIds.length) : [];
     byId('checklist').innerHTML = checklistItems(item).map((label, index) => `<label><input type="checkbox" data-check-index="${index}" ${savedChecks.includes(index) ? 'checked' : ''}><span>${escapeHtml(label)}</span></label>`).join('');
     updateChecklistProgress();
 }
 
 async function openPreparation(item, requestedStep) {
+    state.preparationEpoch += 1;
     state.activeProgram = item;
+    byId('saveDraft').disabled = false;
+    byId('saveDraft').textContent = '체크 저장';
+    byId('saveJourney').disabled = false;
     const draft = state.drafts.find(value => value.programId === item.id);
     byId('preparationLabel').textContent = `${item.region || '전국'} · ${normalizedCategory(item.category)}`;
     byId('preparationTitle').textContent = item.title;
+    byId('preparationContext').textContent = item.title;
     byId('preparationSummary').textContent = item.summary || '';
     byId('preparationTarget').textContent = item.target || '';
     byId('preparationBenefit').textContent = item.benefit || '';
@@ -896,15 +982,15 @@ function setStep(step) {
 function syncPreparationActions() {
     if (!byId('preparationDialog') || !state.activeProgram) return;
     const draft = state.drafts.find(value => value.programId === state.activeProgram.id);
-    const channel = applicationChannel(state.activeProgram);
     const submitted = draft?.status === 'SUBMITTED';
-    const officialUrl = state.activeProgram.onlineUrl || channel.officialUrl || state.activeProgram.applyUrl;
+    const officialUrl = officialUrlFor(state.activeProgram);
     byId('stepBack').hidden = state.activeStep === 1;
     byId('stepNext').hidden = state.activeStep === 3;
     byId('loginToSave').hidden = state.signedIn || submitted || state.activeStep === 2;
     byId('saveDraft').hidden = !state.signedIn || submitted;
     byId('officialApply').hidden = state.activeStep !== 2 || submitted || !officialUrl;
-    byId('officialApply').href = officialUrl || '#';
+    if (officialUrl) byId('officialApply').href = officialUrl;
+    else byId('officialApply').removeAttribute('href');
 }
 
 function updateChecklistProgress() {
@@ -919,10 +1005,13 @@ function formValue(id) { return byId(id).value.trim(); }
 
 function collectDraft() {
     const checklist = [...document.querySelectorAll('#checklist input')];
+    const checkedItems = checklist.filter(input => input.checked)
+        .map(input => checklistIds[Number(input.dataset.checkIndex)]).filter(Boolean);
     return {
         programId: state.activeProgram.id,
         eligibilityConfirmed:byId('eligibilityConfirmed').checked,
-        documentsReady:checklist.length > 0 && checklist.every(input => input.checked)
+        documentsReady:checklist.length > 0 && checklist.every(input => input.checked),
+        checkedItems
     };
 }
 
@@ -940,58 +1029,90 @@ function updateReview() {
     byId('reviewGrid').innerHTML = entries.map(([label,value,complete]) => `<div><span>${label}</span><strong class="${complete ? '' : 'missing'}">${escapeHtml(value)}</strong></div>`).join('');
     const route = byId('applicationRoute');
     route.className = `application-route route-${channelClass(channel.mode)}`;
-    route.innerHTML = `<i>${channel.directAvailable ? '✓' : channel.mode === 'NO_APPLICATION' ? 'i' : '↗'}</i><div><span>현재 신청 방식</span><strong>${escapeHtml(channel.label)}</strong><p>${escapeHtml(channel.description)}</p></div>`;
+    route.innerHTML = `<i>${channel.directAvailable ? '✓' : channel.mode === 'NO_APPLICATION' ? 'i' : '↗'}</i><div><span>현재 신청 방식</span><strong>${escapeHtml(channel.label)}</strong><p>${escapeHtml(routeDescription(item, channel))}</p></div>`;
     const complete = values.eligibilityConfirmed && values.documentsReady;
     const status = byId('readyStatus');
     status.classList.toggle('complete', complete);
-    status.innerHTML = complete ? '<i>✓</i><div><strong>공식 신청처로 이동할 준비가 됐어요</strong><p>개인정보와 증빙서류는 공식 기관 화면에서만 입력해주세요.</p></div>' : '<i>⌛</i><div><strong>확인할 항목이 남아 있어요</strong><p>공식 신청처는 바로 열 수 있고, 체크를 마치면 준비 누락을 줄일 수 있어요.</p></div>';
+    status.innerHTML = !officialUrlFor(item) ? '<i>i</i><div><strong>공식 기관 안내를 확인해주세요</strong><p>연결할 온라인 주소가 없어요. 위의 신청 방법과 문의처를 확인해주세요.</p></div>'
+        : complete ? '<i>✓</i><div><strong>공식 신청처로 이동할 준비가 됐어요</strong><p>개인정보와 증빙서류는 공식 기관 화면에서만 입력해주세요.</p></div>' : '<i>⌛</i><div><strong>확인할 항목이 남아 있어요</strong><p>공식 신청처는 바로 열 수 있고, 체크를 마치면 준비 누락을 줄일 수 있어요.</p></div>';
     syncPreparationActions();
 }
 
 async function saveDraft({ silent = false } = {}) {
     if (!state.activeProgram) return null;
     if (!state.signedIn) { if (!silent) openAuth(); return null; }
+    const authGeneration = state.authGeneration;
+    const preparationEpoch = state.preparationEpoch;
+    const payload = collectDraft();
     const button = byId('saveDraft');
     button.disabled = true;
     const original = button.textContent;
     button.textContent = '저장 중…';
     try {
-        const response = await fetch('/api/applications/drafts', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(collectDraft()) });
+        const response = await fetch('/api/applications/drafts', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
         if (!response.ok) throw new Error(await errorMessage(response, '작성 내용을 저장하지 못했어요.'));
         const draft = await response.json();
+        if (authGeneration !== state.authGeneration) return null;
         state.drafts = [draft, ...state.drafts.filter(value => value.id !== draft.id)];
-        renderApplications(); renderPrograms(state.visibleItems); renderInstitutionReceipt(draft); syncPreparationActions();
-        if (!silent) showToast(draft.status === 'READY_TO_SUBMIT' ? '조건과 서류 체크를 저장했어요.' : '현재 준비상태를 저장했어요.');
+        renderApplications(); renderPrograms(state.visibleItems);
+        if (state.preparationEpoch === preparationEpoch && state.activeProgram?.id === payload.programId && byId('preparationDialog').open) {
+            renderInstitutionReceipt(draft); syncPreparationActions();
+            if (!silent) showToast(draft.status === 'READY_TO_SUBMIT' ? '조건과 서류 체크를 저장했어요.' : '현재 준비상태를 저장했어요.');
+        }
         return draft;
-    } catch (error) { if (!silent) showToast(error.message); return null; }
-    finally { button.disabled = false; button.textContent = original; }
+    } catch (error) {
+        if (!silent && authGeneration === state.authGeneration && state.preparationEpoch === preparationEpoch) showToast(error.message);
+        return null;
+    } finally {
+        if (state.preparationEpoch === preparationEpoch && state.activeProgram?.id === payload.programId) {
+            button.disabled = false; button.textContent = original;
+        }
+    }
 }
 
 async function updateJourney(status, receiptMemo, nextActionDate, { silent = false } = {}) {
-    let draft = state.drafts.find(value => value.programId === state.activeProgram.id);
-    if (!draft) draft = await saveDraft({ silent:true });
-    if (!draft) return null;
+    const authGeneration = state.authGeneration;
+    const preparationEpoch = state.preparationEpoch;
+    const programId = state.activeProgram.id;
+    let draft = state.drafts.find(value => value.programId === programId);
+    const current = collectDraft();
+    const savedItems = Array.isArray(draft?.checkedItems) ? draft.checkedItems : draft?.documentsReady ? checklistIds : [];
+    const changed = !draft || draft.eligibilityConfirmed !== current.eligibilityConfirmed
+        || checklistIds.some(id => savedItems.includes(id) !== current.checkedItems.includes(id));
+    if (changed && draft?.status !== 'SUBMITTED') draft = await saveDraft({ silent:true });
+    if (!draft) {
+        if (!silent && state.preparationEpoch === preparationEpoch) showToast('준비 내용을 저장하지 못했어요. 잠시 후 다시 시도해주세요.');
+        return null;
+    }
     try {
         const response = await fetch(`/api/applications/drafts/${draft.id}/journey`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ status, receiptMemo, nextActionDate }) });
         if (!response.ok) throw new Error(await errorMessage(response, '진행상태를 저장하지 못했어요.'));
         const updated = await response.json();
+        if (authGeneration !== state.authGeneration) return null;
         state.drafts = [updated, ...state.drafts.filter(value => value.id !== updated.id)];
-        renderApplications(); renderPrograms(state.visibleItems); renderInstitutionReceipt(updated);
-        if (!silent) showToast('내 진행상태를 저장했어요.');
+        renderApplications(); renderPrograms(state.visibleItems);
+        if (state.preparationEpoch === preparationEpoch && state.activeProgram?.id === programId && byId('preparationDialog').open) {
+            renderInstitutionReceipt(updated);
+            if (!silent) showToast('내 진행상태를 저장했어요.');
+        }
         return updated;
-    } catch (error) { if (!silent) showToast(error.message); return null; }
+    } catch (error) {
+        if (!silent && authGeneration === state.authGeneration && state.preparationEpoch === preparationEpoch) showToast(error.message);
+        return null;
+    }
 }
 
 async function markOfficialOpened() {
     if (!state.signedIn || !state.activeProgram) return;
     const existing = state.drafts.find(value => value.programId === state.activeProgram.id);
+    if (existing?.journeyStatus && !['PREPARING', 'OFFICIAL_SITE_OPENED'].includes(existing.journeyStatus)) return;
     const memo = existing?.userReceiptMemo || '';
     const date = existing?.nextActionDate || '';
     await updateJourney('OFFICIAL_SITE_OPENED', memo, date, { silent:true });
 }
 
 function openDiagnosis() {
-    const profile = profileToDiagnosis(state.profile) || state.diagnosis;
+    const profile = state.diagnosis || profileToDiagnosis(state.profile);
     if (profile) {
         byId('diagnosisRegion').value = profile.region || '';
         byId('diagnosisAge').value = profile.age || '';
@@ -1061,9 +1182,10 @@ async function applyDiagnosis(event) {
     syncQuickFilterButtons();
     renderDiagnosisSummary();
     byId('diagnosisDialog').close();
+    window.AnsimUI?.show('discover');
     const saved = await saveProfile(nextDiagnosis);
     await loadPrograms();
-    byId('diagnosisSummary').scrollIntoView({ behavior:'smooth', block:'center' });
+    byId('diagnosisSummary').scrollIntoView({ behavior:preferredScrollBehavior(), block:'center' });
     showToast(state.signedIn && saved ? '맞춤 조건을 저장하고 후보를 찾았어요.' : '맞춤 혜택 후보를 찾았어요.');
 }
 
@@ -1102,9 +1224,14 @@ async function submitAuth(event) {
         if (!response.ok) throw new Error(await errorMessage(response, '로그인하지 못했어요.'));
         state.currentUser = await response.json();
         state.signedIn = true;
+        state.authGeneration += 1;
+        const authGeneration = state.authGeneration;
         await loadProfile();
+        if (authGeneration !== state.authGeneration) return;
         if (!state.profile?.exists && state.diagnosis) await saveProfile(state.diagnosis);
+        if (authGeneration !== state.authGeneration) return;
         await loadDrafts();
+        if (authGeneration !== state.authGeneration) return;
         syncAuthUI(); byId('authDialog').close();
         showToast(state.authMode === 'register' ? '가입했어요. 이제 준비를 시작해보세요.' : '로그인했어요.');
     } catch (error) { byId('authError').textContent = error.message; }
@@ -1112,24 +1239,38 @@ async function submitAuth(event) {
 }
 
 function showApplications() {
-    if (!state.signedIn) { openAuth(); return; }
+    window.AnsimUI?.show('prepare');
     byId('applicationSection').hidden = false;
     renderApplications();
-    byId('applicationSection').scrollIntoView({ behavior:'smooth', block:'start' });
+    byId('applicationSection').scrollIntoView({ behavior:preferredScrollBehavior(), block:'start' });
 }
 
 async function showSaved() {
+    window.AnsimUI?.show('saved');
     byId('savedSection').hidden = false;
     byId('savedList').innerHTML = '<div class="loading-state"><i></i><span>저장한 혜택을 불러오고 있어요</span></div>';
     await hydrateSaved();
     renderSaved();
-    byId('savedSection').scrollIntoView({ behavior:'smooth', block:'start' });
+    if(document.body.dataset.view === 'saved') byId('savedSection').scrollIntoView({ behavior:preferredScrollBehavior(), block:'start' });
 }
 
 function handleProgramAction(event) {
     const action = event.target.closest('[data-action]');
     if (!action) return;
-    const item = state.items.find(value => value.id === Number(action.dataset.id));
+    const id = Number(action.dataset.id);
+    if (action.dataset.action === 'remove-saved') { toggleSaved(id); return; }
+    if (action.dataset.action === 'retry-saved') {
+        action.disabled = true;
+        loadProgramById(id).then(item => {
+            if (!item) showToast('현재 확인할 수 없는 혜택이에요. 저장 해제하거나 나중에 다시 확인해주세요.');
+            renderSaved();
+        }).catch(() => {
+            showToast('혜택을 불러오지 못했어요. 잠시 후 다시 시도해주세요.');
+            action.disabled = false;
+        });
+        return;
+    }
+    const item = state.items.find(value => value.id === id);
     if (!item) return;
     if (action.dataset.action === 'save') toggleSaved(item.id);
     if (action.dataset.action === 'compare') toggleComparison(item.id);
@@ -1139,12 +1280,26 @@ function handleProgramAction(event) {
 
 function bindDialogBackdrop(dialog) {
     dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
+    dialog.addEventListener('close', () => {
+        if (document.querySelector('dialog[open]')) return;
+        const saved = dialogReturnFocus.get(dialog);
+        dialogReturnFocus.delete(dialog);
+        const available = element => element && element !== document.body && element.isConnected && !element.disabled && element.getClientRects().length > 0;
+        const programId = dialog.id === 'preparationDialog' ? state.activeProgram?.id : state.activeDetail?.id;
+        const candidates = [saved?.trigger];
+        if (saved?.selector) candidates.push(...document.querySelectorAll(`button${saved.selector},a${saved.selector}`));
+        if (Number.isSafeInteger(programId)) {
+            candidates.push(...document.querySelectorAll(`button[data-draft-action="resume"][data-program-id="${programId}"],button[data-action="detail"][data-id="${programId}"]`));
+        }
+        const target = candidates.find(available);
+        if (target && target !== document.body) target.focus({ preventScroll:true });
+    });
 }
 
-byId('searchForm').addEventListener('submit', event => { event.preventDefault(); clearDiagnosis(); loadPrograms(); });
+byId('searchForm').addEventListener('submit', event => { event.preventDefault(); clearDiagnosis(); loadPrograms().then(()=>byId('programsHeading').scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'})); });
 byId('loadMore').addEventListener('click', () => loadPrograms(state.currentPage + 1, true));
 byId('quickCategories').addEventListener('click', event => { const button = event.target.closest('[data-category]'); if (!button) return; clearDiagnosis(); byId('category').value = button.dataset.category; syncCategorySelection(button.dataset.category); loadPrograms(); });
-byId('categoryGrid').addEventListener('click', event => { const button = event.target.closest('[data-category]'); if (!button) return; clearDiagnosis(); byId('category').value = button.dataset.category; syncCategorySelection(button.dataset.category); loadPrograms().then(() => byId('programsHeading').scrollIntoView({ behavior:'smooth' })); });
+byId('categoryGrid').addEventListener('click', event => { const button = event.target.closest('[data-category]'); if (!button) return; clearDiagnosis(); byId('category').value = button.dataset.category; syncCategorySelection(button.dataset.category); loadPrograms().then(() => byId('programsHeading').scrollIntoView({ behavior:preferredScrollBehavior() })); });
 byId('category').addEventListener('change', event => syncCategorySelection(event.target.value));
 byId('programList').addEventListener('click', handleProgramAction);
 byId('quickFilters').addEventListener('click', event => {
@@ -1232,34 +1387,72 @@ byId('copyPreparationCallScript').addEventListener('click', () => state.activePr
 byId('journeyForm').addEventListener('submit', async event => {
     event.preventDefault();
     if (!state.signedIn) { openAuth(); return; }
+    const preparationEpoch = state.preparationEpoch;
     const button = byId('saveJourney');
     button.disabled = true;
     await updateJourney(byId('journeyStatus').value, formValue('userReceiptMemo'), byId('nextActionDate').value);
-    button.disabled = false;
+    if (preparationEpoch === state.preparationEpoch) button.disabled = false;
 });
 
 byId('applicationList').addEventListener('click', async event => {
     const action = event.target.closest('[data-draft-action]');
     if (!action) return;
-    if (action.dataset.draftAction === 'resume') {
-        const item = await loadProgramById(action.dataset.programId);
-        item ? openPreparation(item, 3) : showToast('혜택 정보를 다시 불러오지 못했어요.');
-    }
-    if (action.dataset.draftAction === 'delete') {
-        const response = await fetch(`/api/applications/drafts/${action.dataset.id}`, { method:'DELETE' });
-        if (response.ok) { state.drafts = state.drafts.filter(value => value.id !== Number(action.dataset.id)); renderApplications(); renderPrograms(state.visibleItems); showToast('저장한 혜택 준비를 삭제했어요.'); }
+    const authGeneration = state.authGeneration;
+    action.disabled = true;
+    try {
+        if (action.dataset.draftAction === 'resume') {
+            const draft = state.drafts.find(value => value.programId === Number(action.dataset.programId));
+            const item = await loadProgramById(action.dataset.programId);
+            if (authGeneration !== state.authGeneration) return;
+            if (item) await openPreparation(item, draft?.journeyStatus && draft.journeyStatus !== 'PREPARING' ? 3 : 1);
+            else showToast('혜택 정보를 다시 불러오지 못했어요.');
+        }
+        if (action.dataset.draftAction === 'delete') {
+            const response = await fetch(`/api/applications/drafts/${action.dataset.id}`, { method:'DELETE' });
+            if (authGeneration !== state.authGeneration) return;
+            if (!response.ok) throw new Error(await errorMessage(response, '준비 기록을 삭제하지 못했어요.'));
+            state.drafts = state.drafts.filter(value => value.id !== Number(action.dataset.id));
+            renderApplications(); renderPrograms(state.visibleItems);
+            showToast('저장한 혜택 준비를 삭제했어요.');
+        }
+    } catch (error) {
+        if (authGeneration === state.authGeneration) showToast(error.message || '요청을 마치지 못했어요. 다시 시도해주세요.');
+    } finally {
+        action.disabled = false;
     }
 });
 
 byId('savedToggle').addEventListener('click', showSaved);
 byId('asideSaved').addEventListener('click', showSaved);
+byId('mobileSaved')?.addEventListener('click', showSaved);
 ['applicationToggle','asideApplications','mobileApplications'].forEach(id => byId(id).addEventListener('click', showApplications));
 byId('heroFeatured').addEventListener('click', openDiagnosis);
 byId('accountButton').addEventListener('click', () => openAuth());
 byId('authClose').addEventListener('click', () => byId('authDialog').close());
 document.querySelectorAll('[data-auth-mode]').forEach(button => button.addEventListener('click', () => setAuthMode(button.dataset.authMode)));
 byId('authForm').addEventListener('submit', submitAuth);
-byId('logoutButton').addEventListener('click', async () => { await fetch('/api/auth/logout', { method:'POST' }); state.currentUser = null; state.signedIn = false; state.profile = null; state.drafts = []; syncAuthUI(); renderMemberProfile(); renderApplications(); renderPrograms(state.visibleItems); byId('authDialog').close(); showToast('로그아웃했어요.'); });
+byId('logoutButton').addEventListener('click', async () => {
+    const button = byId('logoutButton');
+    button.disabled = true;
+    try {
+        const response = await fetch('/api/auth/logout', { method:'POST' });
+        if (!response.ok) throw new Error(await errorMessage(response, '로그아웃하지 못했어요.'));
+        state.authGeneration += 1;
+        state.currentUser = null; state.signedIn = false; state.profile = null;
+        state.drafts = []; state.draftsError = null;
+        clearDiagnosis();
+        byId('keyword').value = ''; byId('region').value = ''; byId('category').value = '';
+        syncCategorySelection('');
+        syncAuthUI(); renderMemberProfile(); renderApplications();
+        byId('authDialog').close();
+        loadPrograms();
+        showToast('로그아웃했어요. 맞춤 조건도 이 브라우저에서 지웠어요.');
+    } catch (error) {
+        showToast(error.message || '로그아웃하지 못했어요. 다시 시도해주세요.');
+    } finally {
+        button.disabled = false;
+    }
+});
 
 [byId('diagnosisDialog'), byId('authDialog'), byId('benefitDetailDialog'), byId('preparationDialog'), byId('compareDialog'), byId('feedbackDialog')].forEach(bindDialogBackdrop);
 
@@ -1280,21 +1473,21 @@ async function hydrateSaved() {
     await Promise.all(Array.from({length:Math.min(4,ids.length)}, async () => {
         while (index < ids.length) {
             const id = ids[index++];
-            try { const item = await loadProgramById(id); if (!item) state.savedIds.delete(id); }
-            catch { /* Retain saved ids during a temporary network failure. */ }
+            try { await loadProgramById(id); }
+            catch { /* Keep the saved id and show its retry action. */ }
         }
     }));
-    writeStorage('ansimlife.saved', [...state.savedIds]); syncCounts();
+    syncCounts();
 }
 
 byId('hideClosed').addEventListener('change', event => { state.hideClosed = event.target.checked; loadPrograms(); });
 byId('region').addEventListener('change', () => { clearDiagnosis(); loadPrograms(); });
 document.querySelectorAll('[data-keyword]').forEach(button => button.addEventListener('click', () => {
     clearDiagnosis(); byId('keyword').value = button.dataset.keyword; loadPrograms();
-    byId('programsHeading').scrollIntoView({behavior:'smooth',block:'start'});
+    byId('programsHeading').scrollIntoView({behavior:preferredScrollBehavior(),block:'start'});
 }));
 document.querySelectorAll('[data-hide-section]').forEach(button => button.addEventListener('click', () => {
-    byId(button.dataset.hideSection).hidden = true;
+    byId(button.dataset.hideSection).hidden = true; window.AnsimUI?.show('discover');
 }));
 byId('dockCompare').addEventListener('click', openComparison);
 byId('recentList').addEventListener('click', async event => {
@@ -1319,6 +1512,7 @@ async function boot() {
         if (labels[label.textContent.trim()]) label.textContent = labels[label.textContent.trim()];
     });
     await loadSession();
+    window.AnsimWorkspace?.init();
     await Promise.all([loadPrograms(),loadMeta(),loadDrafts()]);
     hydrateSaved().then(renderSaved);
     const sharedBenefit = Number(new URLSearchParams(location.search).get('benefit'));

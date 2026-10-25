@@ -1,5 +1,6 @@
 package kr.coders.ansimlife.application;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import kr.coders.ansimlife.account.AuthController;
 import kr.coders.ansimlife.support.SupportProgram;
@@ -19,6 +20,9 @@ import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/applications")
@@ -38,13 +42,17 @@ public class ApplicationDraftController {
 
     @GetMapping("/drafts")
     @Transactional(readOnly = true)
-    public List<DraftResponse> list(HttpSession session) {
-        Long userId = AuthController.sessionUserId(session);
+    public List<DraftResponse> list(HttpServletRequest request) {
+        Long userId = AuthController.sessionUserId(request.getSession(false));
         if (userId == null) {
             return List.of();
         }
-        return draftRepository.findAllByCodersUserOrderByUpdatedAtDesc(userId.toString()).stream()
-                .map(this::toResponse)
+        List<ApplicationDraft> drafts = draftRepository.findAllByCodersUserOrderByUpdatedAtDesc(userId.toString());
+        Map<Long, SupportProgram> programs = programRepository.findAllById(
+                        drafts.stream().map(ApplicationDraft::getProgramId).distinct().toList()).stream()
+                .collect(Collectors.toMap(SupportProgram::getId, Function.identity()));
+        return drafts.stream()
+                .map(draft -> toResponse(draft, programs.get(draft.getProgramId())))
                 .toList();
     }
 
@@ -61,7 +69,9 @@ public class ApplicationDraftController {
         ApplicationDraft draft = draftRepository.findByCodersUserAndProgramId(ownerKey, request.programId())
                 .orElseGet(() -> new ApplicationDraft(ownerKey, request.programId()));
         try {
-            draft.update(request.eligibilityConfirmed(), request.documentsReady());
+            draft.update(request.eligibilityConfirmed(), request.documentsReady(), request.checkedItems());
+        } catch (IllegalArgumentException error) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, error.getMessage());
         } catch (IllegalStateException error) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, error.getMessage());
         }
@@ -107,12 +117,16 @@ public class ApplicationDraftController {
 
     private DraftResponse toResponse(ApplicationDraft draft) {
         SupportProgram program = programRepository.findById(draft.getProgramId()).orElse(null);
+        return toResponse(draft, program);
+    }
+
+    private DraftResponse toResponse(ApplicationDraft draft, SupportProgram program) {
         return new DraftResponse(
                 draft.getId(), draft.getProgramId(),
                 program == null ? "삭제된 지원" : program.getTitle(),
                 program == null ? null : program.getApplyUrl(),
                 program == null ? null : connectorRegistry.describe(program),
-                draft.isEligibilityConfirmed(), draft.isDocumentsReady(),
+                draft.isEligibilityConfirmed(), draft.isDocumentsReady(), draft.getCheckedItems(),
                 draft.getStatus(), draft.getCompletionPercent(), draft.getUpdatedAt(), draft.getSubmittedAt(),
                 draft.getSubmissionProvider(), draft.getExternalReceiptNumber(),
                 draft.getExternalApplicationId(), draft.getExternalAgency(),
@@ -123,7 +137,11 @@ public class ApplicationDraftController {
     private LocalDate parseDate(String value) {
         if (value == null || value.isBlank()) return null;
         try {
-            return LocalDate.parse(value.trim());
+            LocalDate date = LocalDate.parse(value.trim());
+            if (date.getYear() < 1900 || date.getYear() > 9998) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "다음 확인일은 1900년부터 9998년 사이로 입력해주세요.");
+            }
+            return date;
         } catch (DateTimeParseException error) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "다음 확인일을 올바르게 입력해주세요.");
         }
@@ -141,7 +159,11 @@ public class ApplicationDraftController {
     public record DraftRequest(
             Long programId,
             boolean eligibilityConfirmed,
-            boolean documentsReady) {
+            boolean documentsReady,
+            List<String> checkedItems) {
+        public DraftRequest(Long programId, boolean eligibilityConfirmed, boolean documentsReady) {
+            this(programId, eligibilityConfirmed, documentsReady, null);
+        }
     }
 
     public record DraftResponse(
@@ -152,6 +174,7 @@ public class ApplicationDraftController {
             ApplicationChannel application,
             boolean eligibilityConfirmed,
             boolean documentsReady,
+            List<String> checkedItems,
             String status,
             int completionPercent,
             LocalDateTime updatedAt,

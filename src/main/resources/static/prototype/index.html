@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ko" data-text-size="normal">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#14765b">
+  <title>안심생활 · 편하게 찾는 생활혜택</title>
+  <meta name="description" content="안심생활의 큰 글씨와 쉬운 탐색을 확인하는 디자인 프로토타입입니다.">
+  <link rel="stylesheet" href="prototype.css">
+  <script src="prototype.js" defer></script>
+</head>
+<body>
+<svg class="sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+  <symbol id="leaf" viewBox="0 0 24 24"><path d="M20 3c-9-1-15 3-15 9 0 4 5 6 9 3 4-3 5-8 6-12Z"/><path d="M3 22 15 8M7 17l-1-6"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+  <symbol id="pin" viewBox="0 0 24 24"><path d="M19 10c0 6-7 11-7 11S5 16 5 10a7 7 0 1 1 14 0Z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+  <symbol id="arrow" viewBox="0 0 24 24"><path d="M4 12h15m-6-6 6 6-6 6"/></symbol>
+  <symbol id="chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+  <symbol id="back" viewBox="0 0 24 24"><path d="M20 12H5m6-6-6 6 6 6"/></symbol>
+  <symbol id="bookmark" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4V3Z"/></symbol>
+  <symbol id="home" viewBox="0 0 24 24"><path d="m3 11 9-8 9 8M5 10v11h14V10M9 21v-7h6v7"/></symbol>
+  <symbol id="wallet" viewBox="0 0 24 24"><path d="M4 7V5l13-2v4M3 7h18v14H3V7Zm18 5h-6v5h6"/><path d="M17 14.5h.1"/></symbol>
+  <symbol id="shield" viewBox="0 0 24 24"><path d="m12 2 8 3v7c0 5-8 10-8 10S4 17 4 12V5l8-3Z"/><path d="m8 11 3 3 5-6"/></symbol>
+  <symbol id="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 1v3m0 16v3M1 12h3m16 0h3M4 4l2 2m12 12 2 2M4 20l2-2M18 6l2-2"/></symbol>
+  <symbol id="list" viewBox="0 0 24 24"><rect x="5" y="4" width="15" height="18" rx="2"/><path d="M9 2h7v4H9zM9 11h7m-7 5h7"/></symbol>
+  <symbol id="settings" viewBox="0 0 24 24"><path d="M4 6h16M4 18h16"/><circle cx="9" cy="6" r="3"/><circle cx="16" cy="18" r="3"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  <symbol id="close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+  <symbol id="external" viewBox="0 0 24 24"><path d="M14 3h7v7m0-7L11 13M10 5H4v15h15v-6"/></symbol>
+  <symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></symbol>
+</defs></svg>
+<a class="skip" href="#content">본문으로 바로가기</a>
+<header class="site-header">
+  <div class="header-inner wrap">
+    <a class="brand" href="#discover" aria-label="안심생활 혜택 찾기"><svg class="icon brand-leaf" aria-hidden="true"><use href="#leaf"/></svg><span>안심생활<span class="brand-dot">.</span></span></a>
+    <span class="prototype-label">화면 시안</span>
+    <nav class="desktop-nav" aria-label="주요 메뉴">
+      <a href="#discover" data-nav="discover">혜택 찾기</a>
+      <a href="#saved" data-nav="saved">저장한 혜택 <span data-count="saved">0</span></a>
+      <a href="#prepare" data-nav="prepare">신청 준비 <span data-count="prepare">0</span></a>
+    </nav>
+    <details class="text-menu" id="textMenu">
+      <summary><span class="text-symbol" aria-hidden="true">가</span> 글자 크기</summary>
+      <div class="text-options"><p>편한 크기로 읽으세요</p><button type="button" data-text-size="normal" aria-pressed="true">보통</button><button type="button" data-text-size="large" aria-pressed="false">크게</button><button type="button" data-text-size="larger" aria-pressed="false">더 크게</button></div>
+    </details>
+  </div>
+</header>
+<main id="content" tabindex="-1"></main>
+<footer class="site-footer"><div class="wrap"><a class="brand" href="#discover"><svg class="icon" aria-hidden="true"><use href="#leaf"/></svg>안심생활.</a><p>필요한 혜택을 찾고, 준비하는 일을 함께해요.</p><p class="prototype-note">디자인 미리보기입니다. 저장소의 기본 혜택 5건을 사용하며,<br class="desktop-only"> 현재 모집 여부와 최종 자격은 공식 안내에서 확인해주세요.</p><a class="footer-link" href="https://www.gov.kr/" target="_blank" rel="noopener noreferrer">정부24 공식 안내 <svg class="icon" aria-hidden="true"><use href="#external"/></svg></a></div></footer>
+<nav class="bottom-nav" aria-label="주요 메뉴">
+  <a href="#discover" data-nav="discover"><svg class="icon" aria-hidden="true"><use href="#search"/></svg><span>혜택 찾기</span></a>
+  <a href="#saved" data-nav="saved"><svg class="icon" aria-hidden="true"><use href="#bookmark"/></svg><span>저장한 혜택</span></a>
+  <a href="#prepare" data-nav="prepare"><svg class="icon" aria-hidden="true"><use href="#list"/></svg><span>신청 준비</span></a>
+  <a href="#settings" data-nav="settings"><svg class="icon" aria-hidden="true"><use href="#settings"/></svg><span>설정</span></a>
+</nav>
+<dialog id="guideDialog" aria-labelledby="guideTitle">
+  <form id="guideForm">
+    <div class="dialog-heading"><div><span class="eyebrow">내 상황으로 찾기</span><h2 id="guideTitle">어떤 도움이 필요하세요?</h2></div><button class="icon-button" type="button" id="guideClose" aria-label="조건 선택 닫기"><svg class="icon" aria-hidden="true"><use href="#close"/></svg></button></div>
+    <p class="dialog-copy">지역과 관심 분야를 고르면 관련 혜택을 모아드려요.</p>
+    <label class="field"><span>거주 지역</span><select id="guideRegion"><option value="">모든 지역</option><option value="서울">서울</option><option value="전국">전국 공통 혜택</option></select></label>
+    <fieldset class="guide-choices"><legend>관심 분야</legend><label><input type="radio" name="guideTopic" value="" checked><span>전체 혜택</span></label><label><input type="radio" name="guideTopic" value="housing"><span>주거 지원</span></label><label><input type="radio" name="guideTopic" value="living"><span>생활 정보</span></label><label><input type="radio" name="guideTopic" value="safety"><span>귀가 안전</span></label><label><input type="radio" name="guideTopic" value="culture"><span>문화·상담</span></label></fieldset>
+    <p class="help-text">이 선택은 혜택을 찾기 위한 조건이에요. 지원 자격을 확정하지 않아요.</p>
+    <button class="button primary full" type="submit">이 조건으로 혜택 찾기 <svg class="icon" aria-hidden="true"><use href="#arrow"/></svg></button>
+  </form>
+</dialog>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

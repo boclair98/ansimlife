@@ -12,6 +12,10 @@ import jakarta.persistence.UniqueConstraint;
 
 import java.time.LocalDateTime;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 @Entity
 @Table(
@@ -20,6 +24,8 @@ import java.time.LocalDate;
                 name = "uk_application_draft_client_program",
                 columnNames = {"client_key", "program_id"}))
 public class ApplicationDraft {
+
+    public static final List<String> CHECKLIST_IDS = List.of("target", "documents", "period", "route");
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -54,6 +60,11 @@ public class ApplicationDraft {
 
     private boolean eligibilityConfirmed;
     private boolean documentsReady;
+
+    // Nullable for drafts created before the individual checklist existed.
+    // A legacy completed checklist resolves to all four items when this is null.
+    @Column(name = "checklist_mask")
+    private Integer checklistMask;
     private boolean termsAccepted;
 
     @Column(nullable = false, length = 30)
@@ -107,9 +118,14 @@ public class ApplicationDraft {
     }
 
     public void update(boolean eligibilityConfirmed, boolean documentsReady) {
+        update(eligibilityConfirmed, documentsReady, null);
+    }
+
+    public void update(boolean eligibilityConfirmed, boolean documentsReady, List<String> checkedItems) {
         if (isExternallySubmitted()) {
             throw new IllegalStateException("이미 접수한 신청은 수정할 수 없습니다.");
         }
+        int newMask = checkedItems == null ? (documentsReady ? 15 : 0) : maskFor(checkedItems);
         // Legacy columns are kept temporarily for schema compatibility, but the
         // navigator no longer collects or retains application personal data.
         this.applicantName = null;
@@ -120,17 +136,39 @@ public class ApplicationDraft {
         this.incomeRange = null;
         this.memo = null;
         this.eligibilityConfirmed = eligibilityConfirmed;
-        this.documentsReady = documentsReady;
+        this.checklistMask = newMask;
+        this.documentsReady = newMask == 15;
         this.termsAccepted = false;
         refreshProgress();
     }
 
     private void refreshProgress() {
-        int completed = 0;
-        completed += eligibilityConfirmed ? 1 : 0;
-        completed += documentsReady ? 1 : 0;
-        this.completionPercent = completed * 50;
-        this.status = isExternallySubmitted() ? "SUBMITTED" : completed == 2 ? "READY_TO_SUBMIT" : "DRAFT";
+        this.completionPercent = calculatedCompletionPercent();
+        this.status = isExternallySubmitted() ? "SUBMITTED" : completionPercent == 100 ? "READY_TO_SUBMIT" : "DRAFT";
+    }
+
+    private int calculatedCompletionPercent() {
+        return (eligibilityConfirmed ? 1 : 0) * 20 + Integer.bitCount(effectiveChecklistMask()) * 20;
+    }
+
+    private int effectiveChecklistMask() {
+        return checklistMask == null ? (documentsReady ? 15 : 0) : checklistMask;
+    }
+
+    private int maskFor(List<String> checkedItems) {
+        Set<String> seen = new HashSet<>();
+        int mask = 0;
+        for (String item : checkedItems) {
+            if (item == null) {
+                throw new IllegalArgumentException("준비 항목을 다시 확인해주세요.");
+            }
+            int index = CHECKLIST_IDS.indexOf(item);
+            if (index < 0 || !seen.add(item)) {
+                throw new IllegalArgumentException("준비 항목을 다시 확인해주세요.");
+            }
+            mask |= 1 << index;
+        }
+        return mask;
     }
 
     public void requireReadyForExternalSubmission() {
@@ -209,15 +247,23 @@ public class ApplicationDraft {
     public String getIncomeRange() { return incomeRange; }
     public String getMemo() { return memo; }
     public boolean isEligibilityConfirmed() { return eligibilityConfirmed; }
-    public boolean isDocumentsReady() { return documentsReady; }
+    public boolean isDocumentsReady() { return effectiveChecklistMask() == 15; }
+    public List<String> getCheckedItems() {
+        int mask = effectiveChecklistMask();
+        List<String> checked = new ArrayList<>(CHECKLIST_IDS.size());
+        for (int index = 0; index < CHECKLIST_IDS.size(); index++) {
+            if ((mask & (1 << index)) != 0) checked.add(CHECKLIST_IDS.get(index));
+        }
+        return List.copyOf(checked);
+    }
     public boolean isTermsAccepted() { return termsAccepted; }
     public String getStatus() {
         if ("SUBMITTED".equals(status) && !isExternallySubmitted()) {
-            return completionPercent == 100 ? "READY_TO_SUBMIT" : "DRAFT";
+            return calculatedCompletionPercent() == 100 ? "READY_TO_SUBMIT" : "DRAFT";
         }
-        return status;
+        return isExternallySubmitted() ? "SUBMITTED" : calculatedCompletionPercent() == 100 ? "READY_TO_SUBMIT" : "DRAFT";
     }
-    public int getCompletionPercent() { return completionPercent; }
+    public int getCompletionPercent() { return calculatedCompletionPercent(); }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public LocalDateTime getSubmittedAt() { return isExternallySubmitted() ? submittedAt : null; }

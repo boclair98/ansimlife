@@ -3,6 +3,7 @@ package kr.coders.ansimlife.account;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.http.HttpStatus;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,7 +33,8 @@ public class AuthController {
 
     @GetMapping("/me")
     @Transactional(readOnly = true)
-    public SessionResponse me(HttpSession session) {
+    public SessionResponse me(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
         Long userId = sessionUserId(session);
         if (userId == null) return SessionResponse.anonymous();
         return repository.findById(userId)
@@ -53,7 +55,13 @@ public class AuthController {
         if (repository.existsByEmailIgnoreCase(email)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 가입된 이메일이에요.");
         }
-        UserAccount account = repository.save(new UserAccount(email, passwordEncoder.encode(password), displayName));
+        UserAccount account;
+        try {
+            account = repository.saveAndFlush(new UserAccount(email, passwordEncoder.encode(password), displayName));
+        } catch (DataIntegrityViolationException error) {
+            // Another registration may have claimed the email after the existence check.
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 가입된 이메일이에요.");
+        }
         establishSession(request, account.getId());
         return SessionResponse.authenticated(account);
     }
@@ -74,8 +82,9 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public SessionResponse logout(HttpSession session) {
-        session.invalidate();
+    public SessionResponse logout(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        if (session != null) session.invalidate();
         return SessionResponse.anonymous();
     }
 
@@ -87,6 +96,7 @@ public class AuthController {
     }
 
     public static Long sessionUserId(HttpSession session) {
+        if (session == null) return null;
         Object value = session.getAttribute(SESSION_USER_ID);
         return value instanceof Long id ? id : null;
     }
