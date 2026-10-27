@@ -1,20 +1,21 @@
 #!/bin/sh
 set -eu
 
-# Some source importers omit binary assets. Recover only missing files from the
-# same licensed, pinned upstream revision, then verify every byte before build.
+# Some source importers omit or transform binary assets. Recover the exact
+# licensed, pinned upstream bytes and verify every file before build.
 upstream=https://raw.githubusercontent.com/wanteddev/wanted-sans/02c9b822349c188ada95f9e2d90c2ed18f853235
 
 ensure_font() {
     destination=$1
     source_path=$2
     checksum=$3
-    if [ ! -s "$destination" ]; then
+    if ! printf '%s  %s\n' "$checksum" "$destination" | sha256sum --check --status 2>/dev/null; then
+        printf 'Restoring verified font asset: %s\n' "$destination"
         mkdir -p "$(dirname "$destination")"
         curl --fail --location --retry 3 --connect-timeout 20 --max-time 120 \
             "$upstream/$source_path" --output "$destination"
     fi
-    printf '%s  %s\n' "$checksum" "$destination" | sha256sum --check --status
+    printf '%s  %s\n' "$checksum" "$destination" | sha256sum --check
 }
 
 ensure_font src/main/resources/pdf-fonts/WantedSans-Regular.ttf \
