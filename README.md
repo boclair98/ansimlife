@@ -15,6 +15,18 @@
 
 이 프로젝트는 Java 21, Spring Boot, Spring Data JPA, PostgreSQL과 프레임워크 없는 HTML/CSS/JavaScript로 작성했습니다.
 
+## 2026-10-28 토스뱅크 기사형 디자인 적용
+
+현재 디자인은 사용자가 지정한 [토스뱅크 청년 정책 글](https://www.tossbank.com/articles/youth-2026)의 본문 폭·타이포그래피·문단 간격을 기준으로 합니다. 메인·상세·저장·준비 목록·설정·맞춤·비교·인증·신청 준비 3단계·정보 수정·안내문에 함께 적용했습니다.
+
+- 본문 폭660px, PC 제목36px/46.8px, 소제목24px/38.4px, 본문17px/27.2px. 모바일에서는 제목28~30px와 좌우24px 여백을 사용합니다.
+- 흰 배경, 짙은 회색 본문, 파란색 주요 행동을 사용합니다. 주 버튼56px·반경14px, 입력56px·반경12px로 조작 영역을 키웠습니다. 상세는 좌측 정렬의 제목·요약·신청 준비·기사형 본문 순서입니다.
+- 실제 UI 서체는 **Pretendard Variable v1.3.9**이며 자체 호스팅합니다. 원본의 Toss Product Sans와 다른 서체임을 구분합니다. [Pretendard 공식 배포](https://github.com/orioncactus/pretendard/releases/tag/v1.3.9), [SIL OFL](src/main/resources/static/fonts/Pretendard-OFL.txt)을 확인할 수 있습니다. 폰트는 `/fonts/PretendardVariable.woff2?v=1.3.9`로 사전 로드해 운영체제마다 글꼴이 달라지는 것을 줄였습니다.
+- 기존 API·계정·프로필·저장·비교·준비 기록·공식 상세 재조회·PDF 기능과 개인정보 처리 범위를 유지합니다. 정부 신청서를 대신 제출하는 서비스가 아닙니다.
+- CSS는 선택자별 최종 규칙으로 정리하고 모바일 배치를 다시 구성했습니다. 360×800·390×844·768×1024·1440×900과 큰 글자·펼친 필터를 실제 브라우저에서 확인합니다.
+
+아래는 이전 디자인 작업 기록입니다.
+
 ## 2026-10-28 전 화면 배치·간격 개편
 
 [Npay 목록](https://pay.naver.com/benefit/payment/list?firstCategory=ONLINE)과 [공개 상세](https://pay.naver.com/benefit/payment/detail/24278798653388)를 동일한 390×844·1440×900 화면에서 나란히 측정했습니다. 글꼴뿐 아니라 헤더 56px, 탭 40px, 목록 썸네일 70px, 목록 간격 14px, 상세 중앙 아이콘 100px, 주요 버튼 48px·반경 6px·연녹색 `#defae4`, 본문 구분선과 여백을 전체 화면에 적용합니다. 실제 공고 제목이 긴 경우에는 두 줄을 허용합니다.
