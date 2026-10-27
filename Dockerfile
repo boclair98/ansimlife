@@ -3,9 +3,15 @@ WORKDIR /workspace
 COPY pom.xml .
 RUN mvn -q -DskipTests dependency:go-offline
 COPY src ./src
+COPY scripts ./scripts
 RUN test -s src/main/resources/static/index.html \
     && test -s src/main/resources/static/app.js \
-    && mvn -q -DskipTests package
+    && sh scripts/ensure-font-assets.sh \
+    && mvn -q -DskipTests clean package \
+    && jar tf target/ansimlife-0.0.1-SNAPSHOT.jar > /tmp/ansimlife-jar-entries \
+    && grep -Fxq BOOT-INF/classes/pdf-fonts/WantedSans-Regular.ttf /tmp/ansimlife-jar-entries \
+    && grep -Fxq BOOT-INF/classes/pdf-fonts/WantedSans-Bold.ttf /tmp/ansimlife-jar-entries \
+    && grep -Fxq BOOT-INF/classes/static/fonts/WantedSansVariable.woff2 /tmp/ansimlife-jar-entries
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app

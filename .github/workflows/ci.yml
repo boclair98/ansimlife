@@ -27,6 +27,9 @@ jobs:
       - name: Run tests
         run: mvn -B test
 
+      - name: Verify deployment font assets
+        run: sh scripts/ensure-font-assets.sh
+
       - name: Set up Node for browser-independent logic tests
         uses: actions/setup-node@v4
         with:
@@ -37,7 +40,7 @@ jobs:
 
       - name: Check browser script syntax
         run: |
-          for file in app.js workspace.js workflow-core.js service-ui.js; do
+          for file in app.js workspace.js workflow-core.js service-ui.js product.js; do
             node --check "src/main/resources/static/$file"
           done
 

@@ -1094,3 +1094,5 @@ Before returning, verify that the result keeps:
 - all text clearly legible and comfortably spaced
 
 준비·설정 화면에서는 고정 비교 바로가기를 숨겨 본래 작업을 가리지 않게 한다. 비교 목록은 유지하고 탐색·저장 화면과 설정의 명시적 비교 버튼에서 계속 접근할 수 있다.
+
+운영 전환에서 PDF 폰트 누락으로 새 서버가 기동하지 못한 것을 확인했다. 배포 단계에서 공식 고정 커밋의 폰트를 누락 시에만 복원하고 SHA-256을 검사한다. clean 빌드 후 JAR 내 세 폰트 존재를 확인하며, 로컬·CI·운영에서 같은 폰트를 제공한다. 기존 정상 서비스는 새 서버 준비까지 유지한다.
