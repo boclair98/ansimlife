@@ -4,6 +4,9 @@
     function show(view, focus = true) {
         const next = views.includes(view) ? view : 'discover';
         document.body.dataset.view = next;
+        if (next === 'discover' || next === 'saved') {
+            byId(next === 'saved' ? 'savedList' : 'programList').before(byId('comparisonDock'));
+        }
         for (const [key,id] of [['saved','savedSection'],['prepare','applicationSection'],['settings','settingsSection']]) byId(id).hidden = next !== key;
         for (const link of document.querySelectorAll('[data-view-link]')) {
             const active = link.dataset.viewLink === next;
