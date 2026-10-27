@@ -1064,7 +1064,7 @@ function updateReview() {
     const entries = [
         ['지원대상', values.eligibilityConfirmed ? '확인 완료' : '확인 필요', values.eligibilityConfirmed],
         ['준비서류', values.documentsReady ? '체크 완료' : '확인 필요', values.documentsReady],
-        ['신청기간', item.deadline || '공식 안내 확인', true],
+        ['신청기간', (item.deadline || '공식 안내 확인').replace(/[~～]/g, ' ~ '), true],
         ['접수기관', item.receptionAgency || item.agency || '공식 안내 확인', true]
     ];
     byId('reviewGrid').innerHTML = entries.map(([label,value,complete]) => `<div><span>${label}</span><strong class="${complete ? '' : 'missing'}">${escapeHtml(value)}</strong></div>`).join('');
