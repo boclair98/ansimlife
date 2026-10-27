@@ -382,24 +382,25 @@ function cardPreview(value, limit) {
 }
 
 function programCard(item) {
-        const category = normalizedCategory(item.category);
-        const deadline = deadlineMeta(item);
-        const saved = state.savedIds.has(item.id);
-        const compared = state.comparisonIds.has(item.id);
-        const draft = state.drafts.find(value => value.programId === item.id);
-        const progress = draft ? `<div class="card-progress"><span><i style="width:${draft.completionPercent}%"></i></span><b>${escapeHtml(journeyLabels[draft.journeyStatus] || '준비 중')}</b></div>` : '';
-        const reason = state.diagnosis && item.audienceStatus === 'MATCHED'
-            ? `<p class="audience-reason">${escapeHtml(item.audienceReason || '선택한 조건이 지원대상에 포함돼 있어요.')}</p>` : '';
-        const label = deadline.status === 'OPEN' && deadline.label === '상시 신청' ? '상시 신청' : deadline.label;
-        return `<article class="benefit-card status-${deadline.status.toLowerCase()}" data-action="detail" data-id="${item.id}">
-            <div class="benefit-card-top"><span class="card-category-icon">${icon(categoryIcons[category] || 'leaf')}</span><span class="card-category">${escapeHtml(category)}</span><button class="save-button ${saved ? 'active' : ''}" data-action="save" data-id="${item.id}" type="button" aria-pressed="${saved}" aria-label="${escapeHtml(item.title)} ${saved ? '저장 해제' : '저장'}">${icon('bookmark')}</button></div>
-            <h3><button class="card-title-button" data-action="detail" data-id="${item.id}" type="button">${escapeHtml(item.title)}</button></h3>
-            <span class="card-location">${icon('pin')}${escapeHtml(item.region || '전국')}</span>
-            <p class="benefit-value">${escapeHtml(cardPreview(item.benefit || item.summary || '지원 내용은 공식 상세 안내에서 확인해주세요.', 110))}</p>
-            <dl class="card-target"><dt>대상</dt><dd>${escapeHtml(cardPreview(item.target || '공식 상세에서 확인해주세요.', 85))}</dd></dl>${reason}${progress}
-            <div class="benefit-card-bottom"><span class="deadline-chip ${deadline.status.toLowerCase()}">${escapeHtml(label)}</span><button class="compare-button ${compared ? 'active' : ''}" data-action="compare" data-id="${item.id}" type="button" aria-pressed="${compared}" aria-label="${escapeHtml(item.title)} ${compared ? '비교에서 빼기' : '비교에 담기'}">${icon(compared ? 'check' : 'compare')}${compared ? '비교에 담았어요' : '비교하기'}</button><span class="card-open-hint" aria-hidden="true">자세히 보기 ${icon('chevron')}</span></div>
-        </article>`;
-
+    const category = normalizedCategory(item.category);
+    const deadline = deadlineMeta(item);
+    const saved = state.savedIds.has(item.id);
+    const compared = state.comparisonIds.has(item.id);
+    const remainingDays = deadline.label.match(/(\d+)일 남음/);
+    const badgeLabel = remainingDays ? (Number(remainingDays[1]) === 0 ? '오늘 마감' : `D-${remainingDays[1]}`)
+        : deadline.expired ? '모집 종료' : /상시/.test(deadline.label) ? '상시 신청' : '기간 확인';
+    const draft = state.drafts.find(value => value.programId === item.id);
+    const progress = draft ? `<div class="card-progress"><span><i style="width:${draft.completionPercent}%"></i></span><b>${escapeHtml(journeyLabels[draft.journeyStatus] || '준비 중')}</b></div>` : '';
+    const reason = state.diagnosis && item.audienceStatus === 'MATCHED'
+        ? `<p class="audience-reason">${escapeHtml(item.audienceReason || '선택한 조건이 지원대상에 포함돼 있어요.')}</p>` : '';
+    return `<article class="benefit-card status-${deadline.status.toLowerCase()}" data-action="detail" data-id="${item.id}">
+        <div class="card-visual"><span class="card-thumbnail" aria-hidden="true">${icon(categoryIcons[category] || 'leaf')}</span><span class="deadline-chip ${deadline.status.toLowerCase()}" title="${escapeHtml(deadline.label)}" aria-label="${escapeHtml(deadline.label)}">${escapeHtml(badgeLabel)}</span></div>
+        <div class="card-copy"><div class="card-meta"><span class="card-category">${escapeHtml(category)}</span><span aria-hidden="true">·</span><span class="card-location">${escapeHtml(item.region || '전국')}</span></div>
+        <h3><button class="card-title-button" data-action="detail" data-id="${item.id}" type="button">${escapeHtml(item.title)}</button></h3>
+        <p class="benefit-value">${escapeHtml(cardPreview(item.benefit || item.summary || '지원 내용은 공식 상세 안내에서 확인해주세요.', 110))}</p>
+        <dl class="card-target"><dt>대상</dt><dd>${escapeHtml(cardPreview(item.target || '공식 상세에서 확인해주세요.', 85))}</dd></dl>${reason}${progress}</div>
+        <div class="card-actions"><button class="save-button ${saved ? 'active' : ''}" data-action="save" data-id="${item.id}" type="button" aria-pressed="${saved}" aria-label="${escapeHtml(item.title)} ${saved ? '저장 해제' : '저장'}">${icon('bookmark')}</button><button class="compare-button ${compared ? 'active' : ''}" data-action="compare" data-id="${item.id}" type="button" aria-pressed="${compared}" aria-label="${escapeHtml(item.title)} ${compared ? '비교에서 빼기' : '비교에 담기'}">${icon(compared ? 'check' : 'compare')}<span class="sr-only">${compared ? '비교에 담았어요' : '비교하기'}</span></button></div>
+    </article>`;
 }
 
 function selectedComparisonItems() {
