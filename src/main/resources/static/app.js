@@ -27,6 +27,7 @@ const state = {
     preparationEpoch: 0,
     diagnosis: readDiagnosis(),
     quickFilter: 'all',
+    topic: '',
     sortOrder: 'recommended',
     sharedComparisonPending: false,
     hideClosed: true,
@@ -256,6 +257,8 @@ function populateDiagnosisNeeds() {
 }
 
 function syncCategorySelection(category) {
+    const disclosure = document.querySelector('.category-disclosure');
+    if (category && disclosure) disclosure.open = true;
     document.querySelectorAll('[data-category]').forEach(button => {
         button.classList.toggle('active', button.dataset.category === category);
         button.setAttribute('aria-pressed', String(button.dataset.category === category));
@@ -312,6 +315,7 @@ function recommendationBadge(item) {
 
 function currentCriteria() {
     const criteria = [];
+    if (state.topic) criteria.push(`모아보기 · ${window.AnsimWorkflow.topics[state.topic]}`);
     const region = byId('region')?.value;
     const category = byId('category')?.value;
     const keyword = byId('keyword')?.value.trim();
@@ -353,6 +357,7 @@ function syncQuickFilterButtons() {
 }
 
 function renderPrograms(items) {
+    window.AnsimProduct?.syncTopic();
     renderResultOverview();
     byId('count').textContent = `${formatNumber(state.totalResults)}`;
     byId('resultSubcopy').textContent = state.diagnosis
@@ -370,6 +375,11 @@ function renderPrograms(items) {
     grid.innerHTML = items.map(programCard).join('');
 }
 
+function cardPreview(value, limit) {
+    const text = String(value || '').replace(/\s+/g,' ').trim();
+    return Array.from(text).length > limit ? Array.from(text).slice(0,limit).join('') + '…' : text;
+}
+
 function programCard(item) {
         const category = normalizedCategory(item.category);
         const deadline = deadlineMeta(item);
@@ -384,9 +394,9 @@ function programCard(item) {
             <div class="benefit-card-top"><span class="card-category-icon">${icon(categoryIcons[category] || 'leaf')}</span><span class="card-category">${escapeHtml(category)}</span><button class="save-button ${saved ? 'active' : ''}" data-action="save" data-id="${item.id}" type="button" aria-pressed="${saved}" aria-label="${escapeHtml(item.title)} ${saved ? '저장 해제' : '저장'}">${icon('bookmark')}</button></div>
             <h3><button class="card-title-button" data-action="detail" data-id="${item.id}" type="button">${escapeHtml(item.title)}</button></h3>
             <span class="card-location">${icon('pin')}${escapeHtml(item.region || '전국')}</span>
-            <p class="benefit-value">${escapeHtml(item.benefit || item.summary || '지원 내용은 공식 상세 안내에서 확인해주세요.')}</p>
-            <dl class="card-target"><dt>대상</dt><dd>${escapeHtml(item.target || '공식 상세에서 확인해주세요.')}</dd></dl>${reason}${progress}
-            <div class="benefit-card-bottom"><span class="deadline-chip ${deadline.status.toLowerCase()}">${escapeHtml(label)}</span><button class="compare-button ${compared ? 'active' : ''}" data-action="compare" data-id="${item.id}" type="button" aria-pressed="${compared}" aria-label="${escapeHtml(item.title)} ${compared ? '비교에서 빼기' : '비교에 담기'}">${icon(compared ? 'check' : 'compare')}${compared ? '비교에 담았어요' : '비교하기'}</button></div>
+            <p class="benefit-value">${escapeHtml(cardPreview(item.benefit || item.summary || '지원 내용은 공식 상세 안내에서 확인해주세요.', 110))}</p>
+            <dl class="card-target"><dt>대상</dt><dd>${escapeHtml(cardPreview(item.target || '공식 상세에서 확인해주세요.', 85))}</dd></dl>${reason}${progress}
+            <div class="benefit-card-bottom"><span class="deadline-chip ${deadline.status.toLowerCase()}">${escapeHtml(label)}</span><button class="compare-button ${compared ? 'active' : ''}" data-action="compare" data-id="${item.id}" type="button" aria-pressed="${compared}" aria-label="${escapeHtml(item.title)} ${compared ? '비교에서 빼기' : '비교에 담기'}">${icon(compared ? 'check' : 'compare')}${compared ? '비교에 담았어요' : '비교하기'}</button><span class="card-open-hint" aria-hidden="true">자세히 보기 ${icon('chevron')}</span></div>
         </article>`;
 
 }
@@ -516,9 +526,10 @@ async function loadPrograms(page = 0, append = false) {
     const query = new URLSearchParams({
         keyword: byId('keyword').value.trim(), region: byId('region').value,
         category: byId('category').value, sort: state.sortOrder,
-        hideClosed: String(state.hideClosed), page: String(page), size: '24'
+        hideClosed: String(state.hideClosed), page: String(page), size: '12'
     });
     if (state.quickFilter !== 'all') query.set('filter', state.quickFilter);
+    if (state.topic) query.set('topic', state.topic);
     if (state.diagnosis?.age) query.set('age', state.diagnosis.age);
     if (state.diagnosis?.household) query.set('household', state.diagnosis.household);
     try {
@@ -567,6 +578,7 @@ function toggleSaved(id) {
 }
 
 function renderSaved() {
+    if (window.AnsimProduct) return window.AnsimProduct.renderSaved();
     const items = [...state.savedIds].map(id => ({id,item:state.items.find(value=>value.id===id)}));
     byId('savedList').innerHTML = items.length ? items.map(({id,item}) => item ? programCard(item) : '<article class="benefit-card saved-unavailable"><h2>혜택 정보를 불러오지 못했어요</h2><p>혜택 번호 '+id+'</p><div><button class="ghost-button" data-action="retry-saved" data-id="'+id+'" type="button">다시 불러오기</button><button class="text-button" data-action="remove-saved" data-id="'+id+'" type="button">저장 해제</button></div></article>').join('') : '<div class="empty-state"><span>'+icon('bookmark')+'</span><h2>다시 볼 혜택을 모아보세요</h2><p>혜택 카드의 저장 버튼을 누르면<br>이곳에서 다시 확인할 수 있어요.</p><button class="primary-button" type="button" data-return-discover>혜택 찾아보기 '+icon('arrow')+'</button></div>';
 }
@@ -1170,6 +1182,7 @@ async function applyDiagnosis(event) {
         incomeRange:byId('diagnosisIncome').value
     };
     state.diagnosis = nextDiagnosis;
+    state.topic = '';
     writeStorage('ansimlife.diagnosis', state.diagnosis);
     byId('region').value = state.diagnosis.region;
     byId('category').value = state.diagnosis.need;
@@ -1313,6 +1326,7 @@ byId('resetSearch').addEventListener('click', () => {
     byId('region').value = '';
     byId('category').value = '';
     clearDiagnosis();
+    state.topic = '';
     state.quickFilter = 'all'; state.sortOrder = 'recommended';
     byId('sortPrograms').value = 'recommended';
     syncQuickFilterButtons();

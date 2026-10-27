@@ -154,6 +154,52 @@ class SupportProgramControllerTest {
                 .andExpect(jsonPath("$.message").value("입력한 내용을 확인해주세요."));
     }
 
+    @Test
+    void topicCombinesRelatedTermsAndStillRespectsRegionAndKeyword() throws Exception {
+        repository.save(new SupportProgram("이사비 지원", "부산", "생활안정", "부산 시민",
+                "이사 비용 안내", "운반비", "", "상시", false));
+        mockMvc.perform(get("/api/programs").param("topic", "housing").param("region", "서울"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(3));
+        mockMvc.perform(get("/api/programs").param("topic", "housing").param("region", "부산").param("keyword", "운반비"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.items[0].title").value("이사비 지원"));
+        mockMvc.perform(get("/api/programs").param("topic", "culture"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(0));
+    }
+
+    @Test
+    void topicFilteringHappensBeforeTotalsAndDeadlinePagination() throws Exception {
+        repository.deleteAll();
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        for (int i = 0; i < 15; i++) saveProgram("주거 지원 " + i, "시민", today.plusDays(i + 1).toString(), "");
+        for (int i = 0; i < 4; i++) saveProgram("스포츠 지원 " + i, "시민", "상시", "");
+        mockMvc.perform(get("/api/programs").param("topic", "housing").param("sort", "deadline").param("size", "12").param("page", "1"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(15))
+                .andExpect(jsonPath("$.items.length()").value(3))
+                .andExpect(jsonPath("$.items[0].title").value("주거 지원 12"))
+                .andExpect(jsonPath("$.items[0].deadlineDate").value(today.plusDays(13).toString()));
+    }
+
+    @Test
+    void unknownTopicIsRejectedRatherThanReturningUnrelatedBenefits() throws Exception {
+        mockMvc.perform(get("/api/programs").param("topic", "unknown"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").isNotEmpty());
+    }
+
+    @Test
+    void publicGuideDownloadReturnsKoreanPdfAndRejectsMissingProgram() throws Exception {
+        Long id = repository.findAll().getFirst().getId();
+        var result = mockMvc.perform(get("/api/programs/" + id + "/guide.pdf"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentType("application/pdf"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Cache-Control", "no-store"))
+                .andReturn();
+        try (var document = org.apache.pdfbox.Loader.loadPDF(result.getResponse().getContentAsByteArray())) {
+            org.assertj.core.api.Assertions.assertThat(new org.apache.pdfbox.text.PDFTextStripper().getText(document)).contains("안심생활", "지원 대상");
+        }
+        mockMvc.perform(get("/api/programs/999999999/guide.pdf")).andExpect(status().isNotFound());
+    }
+
     private void saveProgram(String title, String target, String deadline, String applyUrl) {
         repository.save(new SupportProgram(title, "서울", "주거·자립", target,
                 "지원 안내", "지원 내용", applyUrl, deadline, false));

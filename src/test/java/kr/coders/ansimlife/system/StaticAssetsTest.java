@@ -35,8 +35,8 @@ class StaticAssetsTest {
     void visualAndInteractionAssetsAreServedAlongsideTheApi() throws Exception {
         for (String path : new String[]{"/app.js", "/app.css", "/dialogs.css",
                 "/workspace.js", "/workspace.css", "/workflow-core.js", "/service.css", "/service-ui.js",
-                "/prototype/assets/seoul-city.jpg", "/favicon.svg",
-                "/fonts/PretendardVariable.woff2"}) {
+                "/prototype/assets/seoul-city.jpg", "/favicon.svg", "/product.js", "/product.css", "/benefit-guide.svg",
+                "/fonts/PretendardVariable.woff2", "/fonts/WantedSansVariable.woff2", "/fonts/WantedSans-OFL.txt"}) {
             mockMvc.perform(get(path)).andExpect(status().isOk());
         }
     }

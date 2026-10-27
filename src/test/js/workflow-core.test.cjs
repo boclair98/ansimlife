@@ -42,6 +42,30 @@ test('malformed stored searches cannot inject unknown fields or invalid filters'
     assert.equal(core.normalizeSearch({ keyword:'가'.repeat(200) }).keyword.length, 80);
 });
 
+test('topic searches round-trip through shared URLs and reject unknown topic values', () => {
+    const value = {topic:'housing',region:'서울',keyword:'청년',diagnosis:{region:'서울',age:'청년',need:'주거·자립',household:'1인 가구'}};
+    const url = new URL(core.searchLink(value, 'https://ansimlife.example'));
+    const restored = core.searchFromUrl(url.search);
+    assert.equal(restored.topic,'housing');
+    assert.equal(restored.keyword,'청년');
+    assert.equal(restored.diagnosis,null);
+    assert.ok(core.searchLabel(value).includes('주거·이사'));
+    for (const topic of ['unknown','constructor','__proto__',null,[]]) assert.equal(core.normalizeSearch({topic}).topic,'');
+});
+
+test('saved search and deadline ordering retain unavailable records and do not mutate saved order', () => {
+    const entries = [
+        {id:1,item:{title:'주거',region:'서울',deadlineDate:'2026-11-02'}},
+        {id:2,item:{title:'장학',region:'부산',deadlineDate:'2026-10-30'}},
+        {id:3,item:{title:'만료',deadlineDate:'2026-10-01',expired:true}},
+        {id:4,item:{title:'상시'}}, {id:5,item:null}
+    ];
+    assert.deepEqual(core.selectSaved(entries,{keyword:'서울'}).map(x=>x.id),[1]);
+    assert.deepEqual(core.selectSaved(entries,{sort:'deadline'}).map(x=>x.id),[2,1,5,4,3]);
+    assert.deepEqual(core.selectSaved(entries).map(x=>x.id),[5,4,3,2,1]);
+    assert.deepEqual(entries.map(x=>x.id),[1,2,3,4,5]);
+});
+
 const drafts = [
     { id:1, programId:10, programTitle:'주거 지원', journeyStatus:'PREPARING', nextActionDate:'2026-10-24', updatedAt:'2026-10-20T10:00:00' },
     { id:2, programId:11, programTitle:'의료비 지원', journeyStatus:'RESULT_WAITING', nextActionDate:'2026-10-25', updatedAt:'2026-10-22T10:00:00' },

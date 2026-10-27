@@ -7,6 +7,7 @@
     const clean = (value, max = 80) => typeof value === 'string' ? value.trim().slice(0, max) : '';
     const pick = (value, allowed, fallback) => allowed.includes(value) ? value : fallback;
     const closed = new Set(['APPROVED', 'REJECTED']);
+    const topics = {housing:'주거·이사',work:'취업·창업',family:'육아·출산',learn:'배움·장학',care:'건강·돌봄',culture:'문화·여가'};
     function safeExternalUrl(...candidates) {
         for (const candidate of candidates) {
             if (typeof candidate !== 'string') continue;
@@ -23,6 +24,7 @@
         const input = value && typeof value === 'object' ? value : {};
         const result = {
             keyword: clean(input.keyword), region: clean(input.region, 20), category: clean(input.category, 30),
+            topic: typeof input.topic === 'string' && Object.hasOwn(topics, input.topic) ? input.topic : '',
             sort: pick(input.sort, ['recommended', 'deadline', 'online'], 'recommended'),
             filter: pick(input.filter, ['all', 'urgent', 'online', 'matched'], 'all'),
             hideClosed: input.hideClosed !== false && input.hideClosed !== 'false', diagnosis: null
@@ -36,8 +38,9 @@
     }
     function searchLabel(value) {
         const criteria = normalizeSearch(value);
-        const parts = [criteria.region || '모든 지역', criteria.keyword || criteria.category || '전체 혜택'];
-        if (criteria.keyword && criteria.category) parts.push(criteria.category);
+        const parts = [criteria.region || '모든 지역', criteria.keyword || topics[criteria.topic] || criteria.category || '전체 혜택'];
+        if (criteria.topic && criteria.keyword) parts.push(topics[criteria.topic]);
+        if (criteria.category && (criteria.keyword || criteria.topic)) parts.push(criteria.category);
         if (criteria.diagnosis) parts.push(criteria.diagnosis.age, criteria.diagnosis.household);
         if (criteria.filter !== 'all') parts.push({ urgent:'마감 임박', online:'온라인', matched:'조건 일치' }[criteria.filter]);
         if (criteria.sort !== 'recommended') parts.push({ deadline:'마감 가까운순', online:'온라인 안내순' }[criteria.sort]);
@@ -49,7 +52,7 @@
         const criteria = normalizeSearch(value);
         const url = new URL('/', origin);
         url.searchParams.set('search', '1');
-        for (const key of ['keyword', 'region', 'category']) if (criteria[key]) url.searchParams.set(key, criteria[key]);
+        for (const key of ['keyword', 'region', 'category', 'topic']) if (criteria[key]) url.searchParams.set(key, criteria[key]);
         url.searchParams.set('sort', criteria.sort);
         url.searchParams.set('filter', criteria.filter === 'matched' ? 'all' : criteria.filter);
         url.searchParams.set('hideClosed', String(criteria.hideClosed));
@@ -59,6 +62,21 @@
     function searchFromUrl(search) {
         const params = new URLSearchParams(search);
         return params.get('search') === '1' ? normalizeSearch(Object.fromEntries(params)) : null;
+    }
+    function selectSaved(entries, {keyword = '', sort = 'saved'} = {}) {
+        const query = clean(keyword).toLocaleLowerCase('ko-KR');
+        const selected = entries.map((entry, index) => ({...entry, index})).filter(({item}) => !query ||
+            [item?.title, item?.target, item?.benefit, item?.region, item?.category].some(value => String(value || '').toLocaleLowerCase('ko-KR').includes(query)));
+        return selected.sort((a,b) => {
+            if (sort === 'deadline') {
+                const bucket = item => item?.expired ? 2 : isDate(item?.deadlineDate) ? 0 : 1;
+                const group = bucket(a.item) - bucket(b.item);
+                if (group) return group;
+                const dates = String(a.item?.deadlineDate || '').localeCompare(String(b.item?.deadlineDate || ''));
+                if (dates) return dates;
+            }
+            return b.index - a.index;
+        });
     }
     function isDate(value) {
         if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -132,5 +150,5 @@
         lines.push('END:VCALENDAR');
         return lines.map(foldLine).join('\r\n') + '\r\n';
     }
-    return { safeExternalUrl, normalizeSearch, searchLabel, searchKey, searchLink, searchFromUrl, isDate, todayKey, dayDistance, draftGroup, dueMeta, selectDrafts, calendarDrafts, calendar };
+    return { topics, selectSaved, safeExternalUrl, normalizeSearch, searchLabel, searchKey, searchLink, searchFromUrl, isDate, todayKey, dayDistance, draftGroup, dueMeta, selectDrafts, calendarDrafts, calendar };
 });

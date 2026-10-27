@@ -9,7 +9,7 @@
 
     function currentSearch() {
         return core.normalizeSearch({ keyword:byId('keyword').value, region:byId('region').value,
-            category:byId('category').value, sort:state.sortOrder, filter:state.quickFilter,
+            category:byId('category').value, topic:state.topic, sort:state.sortOrder, filter:state.quickFilter,
             hideClosed:state.hideClosed, diagnosis:state.diagnosis });
     }
     function savePresets() {
@@ -34,9 +34,9 @@
         if (url.searchParams.get('search') === '1') {
             const next = new URL(core.searchLink(current, location.origin));
             if (current.diagnosis) {
-                ['search','keyword','region','category','sort','filter','hideClosed'].forEach(key => url.searchParams.delete(key));
+                ['search','keyword','region','category','topic','sort','filter','hideClosed'].forEach(key => url.searchParams.delete(key));
             } else {
-                ['search','keyword','region','category','sort','filter','hideClosed'].forEach(key => {
+                ['search','keyword','region','category','topic','sort','filter','hideClosed'].forEach(key => {
                     next.searchParams.has(key) ? url.searchParams.set(key, next.searchParams.get(key)) : url.searchParams.delete(key);
                 });
             }
@@ -51,6 +51,8 @@
             const select = byId(key);
             select.value = [...select.options].some(option => option.value === criteria[key]) ? criteria[key] : '';
         }
+        state.topic = criteria.topic;
+        window.AnsimProduct?.syncTopic();
         state.sortOrder = criteria.sort;
         state.quickFilter = criteria.filter;
         state.hideClosed = criteria.hideClosed;

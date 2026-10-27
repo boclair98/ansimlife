@@ -8,6 +8,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.CacheControl;
+import java.io.IOException;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -27,17 +33,20 @@ public class SupportProgramController {
     private final PublicServiceDetailService detailService;
     private final ApplicationConnectorRegistry connectorRegistry;
     private final SupportProgramAudienceMatcher audienceMatcher;
+    private final BenefitGuidePdfService guidePdfService;
 
     public SupportProgramController(SupportProgramRepository repository,
                                     PublicServiceSyncService syncService,
                                     PublicServiceDetailService detailService,
                                     ApplicationConnectorRegistry connectorRegistry,
-                                    SupportProgramAudienceMatcher audienceMatcher) {
+                                    SupportProgramAudienceMatcher audienceMatcher,
+                                    BenefitGuidePdfService guidePdfService) {
         this.repository = repository;
         this.syncService = syncService;
         this.detailService = detailService;
         this.connectorRegistry = connectorRegistry;
         this.audienceMatcher = audienceMatcher;
+        this.guidePdfService = guidePdfService;
     }
 
     @GetMapping
@@ -45,6 +54,7 @@ public class SupportProgramController {
             @RequestParam(defaultValue = "") String region,
             @RequestParam(defaultValue = "") String category,
             @RequestParam(defaultValue = "") String keyword,
+            @RequestParam(defaultValue = "") String topic,
             @RequestParam(defaultValue = "") String age,
             @RequestParam(defaultValue = "") String household,
             @RequestParam(defaultValue = "") String filter,
@@ -55,6 +65,7 @@ public class SupportProgramController {
         String normalizedRegion = region.trim();
         String normalizedCategory = category.trim();
         String normalizedKeyword = keyword.trim();
+        String normalizedTopic = topic.trim();
         String normalizedAge = age.trim();
         String normalizedHousehold = household.trim();
         String normalizedFilter = filter.trim();
@@ -62,6 +73,9 @@ public class SupportProgramController {
         int normalizedPage = Math.max(0, page);
         int normalizedSize = Math.max(12, Math.min(size, 60));
 
+        if (!BenefitTopic.supports(normalizedTopic)) {
+            throw new ResponseStatusException(BAD_REQUEST, "지원하지 않는 상황별 모아보기입니다.");
+        }
         if (!audienceMatcher.supportsAgeGroup(normalizedAge)) {
             throw new ResponseStatusException(BAD_REQUEST, "지원하지 않는 연령대입니다.");
         }
@@ -82,6 +96,7 @@ public class SupportProgramController {
         List<SearchCandidate> matches = repository.searchCandidates(
                         normalizedRegion, normalizedCategory, normalizedKeyword,
                         normalizedFilter.equals("matched") ? "" : normalizedFilter).stream()
+                .filter(program -> BenefitTopic.matches(program, normalizedTopic))
                 .filter(program -> audienceMatcher.matches(program, normalizedAge, normalizedHousehold))
                 .map(program -> new SearchCandidate(program, BenefitDeadline.analyze(program.getDeadline()),
                         audienceMatcher.explain(program, normalizedAge, normalizedHousehold).status()))
@@ -158,6 +173,16 @@ public class SupportProgramController {
                 detail.sourceUpdatedAt(), detail.sourceLive(), connectorRegistry.describe(program));
     }
 
+    @GetMapping(value = "/{id}/guide.pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<byte[]> guide(@PathVariable Long id) throws IOException {
+        SupportProgram program = repository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "지원 정보를 찾을 수 없습니다."));
+        byte[] pdf = guidePdfService.render(program, detailService.find(program));
+        return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF).cacheControl(CacheControl.noStore())
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename("ansimlife-benefit-" + id + ".pdf").build().toString()).body(pdf);
+    }
+
     private ProgramResponse toResponse(SupportProgram program, String ageGroup, String household) {
         SupportProgramAudienceMatcher.AudienceFit fit = audienceMatcher.explain(program, ageGroup, household);
         String displayCategory = BenefitPresentation.category(program.getCategory(), program.getTitle());
@@ -166,7 +191,7 @@ public class SupportProgramController {
         return new ProgramResponse(
                 program.getId(), program.getExternalId(), program.getTitle(), displayRegion,
                 displayCategory, program.getTarget(), program.getSummary(), program.getBenefit(),
-                program.getApplyUrl(), program.getDeadline(), deadline.status(), deadline.label(),
+                program.getApplyUrl(), program.getDeadline(), deadline.lastDate(), deadline.status(), deadline.label(),
                 deadline.urgent(), deadline.expired(), connectorRegistry.describe(program),
                 fit.status(), fit.reason());
     }
@@ -182,6 +207,7 @@ public class SupportProgramController {
             String benefit,
             String applyUrl,
             String deadline,
+            LocalDate deadlineDate,
             String deadlineStatus,
             String deadlineLabel,
             boolean urgent,
