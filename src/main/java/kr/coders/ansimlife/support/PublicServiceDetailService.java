@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -16,6 +17,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -29,45 +31,76 @@ public class PublicServiceDetailService {
     private static final Logger log = LoggerFactory.getLogger(PublicServiceDetailService.class);
     private static final String LIST_URL = "https://api.odcloud.kr/api/gov24/v3/serviceList";
     private static final String DETAIL_URL = "https://api.odcloud.kr/api/gov24/v3/serviceDetail";
-    private static final Duration CACHE_TTL = Duration.ofHours(6);
+    private static final Duration CACHE_TTL = Duration.ofMinutes(10);
+    private static final Duration REFRESH_GAP = Duration.ofMinutes(1);
+    private static final int MAX_CACHE_ENTRIES = 2_000;
 
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
     private final String serviceKey;
+    private final Clock clock;
     private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
+    private final Map<String, CompletableFuture<DetailLookup>> inFlight = new ConcurrentHashMap<>();
 
+    @Autowired
     public PublicServiceDetailService(ObjectMapper objectMapper,
                                       @Value("${ansimlife.public-data.service-key:}") String serviceKey) {
+        this(objectMapper, serviceKey, HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(8)).build(), Clock.systemUTC());
+    }
+
+    PublicServiceDetailService(ObjectMapper objectMapper, String serviceKey, HttpClient httpClient, Clock clock) {
         this.objectMapper = objectMapper;
         this.serviceKey = decodeIfNeeded(serviceKey.trim());
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(8))
-                .build();
+        this.httpClient = httpClient;
+        this.clock = clock;
     }
 
     public ProgramDetail find(SupportProgram program) {
+        return lookup(program, false).detail();
+    }
+
+    public DetailLookup lookup(SupportProgram program, boolean refresh) {
         String externalId = program.getExternalId();
         if (externalId == null || externalId.isBlank() || serviceKey.isBlank()) {
-            return fallback(program);
+            return new DetailLookup(fallback(program), null, false, false, false, false);
         }
 
         CacheEntry cached = cache.get(externalId);
-        if (cached != null && cached.cachedAt().plus(CACHE_TTL).isAfter(Instant.now())) {
-            return cached.detail();
+        Instant now = clock.instant();
+        boolean limited = refresh && cached != null && cached.cachedAt().plus(REFRESH_GAP).isAfter(now);
+        if (cached != null && (limited || !refresh && cached.cachedAt().plus(CACHE_TTL).isAfter(now))) {
+            return new DetailLookup(cached.detail(), cached.cachedAt(), true, true, limited, false);
         }
 
+        CompletableFuture<DetailLookup> pending = new CompletableFuture<>();
+        CompletableFuture<DetailLookup> existing = inFlight.putIfAbsent(externalId, pending);
+        if (existing != null) return existing.join();
         try {
             CompletableFuture<JsonNode> listFuture = fetchOne(LIST_URL, externalId);
             CompletableFuture<JsonNode> detailFuture = fetchOne(DETAIL_URL, externalId);
             CompletableFuture.allOf(listFuture, detailFuture).join();
             JsonNode list = listFuture.join();
             JsonNode detail = detailFuture.join();
+            if (list.isEmpty() && detail.isEmpty()) throw new IllegalStateException("Official record is unavailable");
             ProgramDetail result = map(program, list, detail);
-            cache.put(externalId, new CacheEntry(result, Instant.now()));
-            return result;
+            Instant fetchedAt = clock.instant();
+            if (cache.size() >= MAX_CACHE_ENTRIES) {
+                cache.entrySet().removeIf(entry -> !entry.getValue().cachedAt().plus(CACHE_TTL).isAfter(fetchedAt));
+                if (cache.size() >= MAX_CACHE_ENTRIES) cache.keySet().stream().findFirst().ifPresent(cache::remove);
+            }
+            cache.put(externalId, new CacheEntry(result, fetchedAt));
+            DetailLookup lookup = new DetailLookup(result, fetchedAt, false, true, false, false);
+            pending.complete(lookup);
+            return lookup;
         } catch (Exception error) {
-            log.warn("Could not load live detail for public service {}: {}", externalId, error.getMessage());
-            return fallback(program);
+            log.warn("Could not load live detail for public service {} ({})", externalId, error.getClass().getSimpleName());
+            DetailLookup lookup = cached == null
+                    ? new DetailLookup(fallback(program), null, false, true, false, true)
+                    : new DetailLookup(cached.detail(), cached.cachedAt(), true, true, false, true);
+            pending.complete(lookup);
+            return lookup;
+        } finally {
+            inFlight.remove(externalId, pending);
         }
     }
 
@@ -116,7 +149,7 @@ public class PublicServiceDetailService {
         String legalBasis = pick(detail, list, "", "법령", "근거법령");
         String updatedAt = pick(detail, list, "", "수정일시", "최종수정일", "데이터기준일자");
         return new ProgramDetail(summary, purpose, target, benefit, criteria, applicationMethod,
-                program.getDeadline(), agency, department, receptionAgency, contact,
+                pick(list, detail, program.getDeadline(), "신청기한", "신청기간"), agency, department, receptionAgency, contact,
                 requiredDocuments, officialDocuments, identityDocuments, onlineUrl,
                 legalBasis, updatedAt, !list.isEmpty() || !detail.isEmpty());
     }
@@ -189,6 +222,9 @@ public class PublicServiceDetailService {
             String legalBasis,
             String sourceUpdatedAt,
             boolean sourceLive) {}
+
+    public record DetailLookup(ProgramDetail detail, Instant sourceFetchedAt, boolean sourceCached,
+                               boolean refreshAvailable, boolean refreshLimited, boolean refreshFailed) {}
 
     private record CacheEntry(ProgramDetail detail, Instant cachedAt) {}
 }

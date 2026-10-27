@@ -42,6 +42,18 @@ class SupportProgramControllerTest {
     }
 
     @Test
+    void providerDemonstrationIsExcludedBeforePagingWithoutHidingRealTestServices() throws Exception {
+        repository.save(new SupportProgram("온라인 신청 시연 테스트(운영)", "전국", "생활안정", "시연", "시연", "테스트", "", "상시", false));
+        repository.save(new SupportProgram("청소년 심리검사 테스트 지원", "전국", "보건·의료", "청소년", "심리 지원", "상담", "", "상시", false));
+        mockMvc.perform(get("/api/programs").param("keyword", "테스트"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.items[0].title").value("청소년 심리검사 테스트 지원"));
+        mockMvc.perform(get("/api/programs"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(4));
+    }
+
+    @Test
     void youthDiagnosisExcludesSeniorOnlyProgramAtApiBoundary() throws Exception {
         mockMvc.perform(get("/api/programs")
                         .param("region", "서울")

@@ -96,6 +96,9 @@ public class SupportProgramController {
         List<SearchCandidate> matches = repository.searchCandidates(
                         normalizedRegion, normalizedCategory, normalizedKeyword,
                         normalizedFilter.equals("matched") ? "" : normalizedFilter).stream()
+                // The provider publishes this specific administrative demonstration;
+                // it is not an application opportunity for the public.
+                .filter(program -> !program.getTitle().replaceAll("\\s+", "").equals("온라인신청시연테스트(운영)"))
                 .filter(program -> BenefitTopic.matches(program, normalizedTopic))
                 .filter(program -> audienceMatcher.matches(program, normalizedAge, normalizedHousehold))
                 .map(program -> new SearchCandidate(program, BenefitDeadline.analyze(program.getDeadline()),
@@ -159,10 +162,11 @@ public class SupportProgramController {
     }
 
     @GetMapping("/{id}/detail")
-    public ProgramDetailResponse detail(@PathVariable Long id) {
+    public ProgramDetailResponse detail(@PathVariable Long id, @RequestParam(defaultValue = "false") boolean refresh) {
         SupportProgram program = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "지원 정보를 찾을 수 없습니다."));
-        PublicServiceDetailService.ProgramDetail detail = detailService.find(program);
+        PublicServiceDetailService.DetailLookup lookup = detailService.lookup(program, refresh);
+        PublicServiceDetailService.ProgramDetail detail = lookup.detail();
         return new ProgramDetailResponse(
                 program.getId(), program.getExternalId(), program.getTitle(),
                 BenefitPresentation.region(program.getRegion(), program.getTitle()),
@@ -170,7 +174,8 @@ public class SupportProgramController {
                 detail.criteria(), detail.applicationMethod(), detail.deadline(), detail.agency(),
                 detail.department(), detail.receptionAgency(), detail.contact(), detail.requiredDocuments(),
                 detail.officialDocuments(), detail.identityDocuments(), detail.onlineUrl(), detail.legalBasis(),
-                detail.sourceUpdatedAt(), detail.sourceLive(), connectorRegistry.describe(program));
+                detail.sourceUpdatedAt(), detail.sourceLive(), lookup.sourceFetchedAt(), lookup.sourceCached(),
+                lookup.refreshAvailable(), lookup.refreshLimited(), lookup.refreshFailed(), connectorRegistry.describe(program));
     }
 
     @GetMapping(value = "/{id}/guide.pdf", produces = MediaType.APPLICATION_PDF_VALUE)
@@ -239,6 +244,11 @@ public class SupportProgramController {
             String legalBasis,
             String sourceUpdatedAt,
             boolean sourceLive,
+            Instant sourceFetchedAt,
+            boolean sourceCached,
+            boolean refreshAvailable,
+            boolean refreshLimited,
+            boolean refreshFailed,
             ApplicationChannel application) {}
     public record SearchResponse(List<ProgramResponse> items, int page, int size, long total, boolean hasMore) {}
     public record CategorySummary(String category, long count) {}

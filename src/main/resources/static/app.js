@@ -11,6 +11,7 @@ const state = {
     savedIds: readIdSet('ansimlife.saved'),
     comparisonIds: readIdSet('ansimlife.compare'),
     detailCache: new Map(),
+    detailRequestEpoch: 0,
     activeProgram: null,
     activeDetail: null,
     currentPage: 0,
@@ -123,7 +124,7 @@ function formatDateTime(value) {
     if (!value) return '';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '날짜 확인 필요';
-    return new Intl.DateTimeFormat('ko-KR', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }).format(date);
+    return new Intl.DateTimeFormat('ko-KR', { timeZone:'Asia/Seoul', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }).format(date);
 }
 function formatFreshness(value) {
     const date = new Date(value);
@@ -292,7 +293,7 @@ async function loadMeta() {
         byId('storedBenefitCount').textContent = `${formatNumber(meta.storedCount)}개 혜택`;
         byId('heroBenefitCount').textContent = `${formatNumber(meta.storedCount || meta.totalAvailable)}개`;
         byId('heroCategoryCount').textContent = `${Math.max(Object.keys(counts).length, categories.length)}개 분야`;
-        const labels = { READY:'공식 목록 동기화 완료', SYNCING:'전체 혜택 동기화 중', PARTIAL:'혜택 추가 반영 중', WAITING:'동기화 준비 중', DISABLED:'데이터 연결 필요', ERROR:'저장된 최신 정보 제공 중' };
+        const labels = { READY:'공식 목록 동기화 완료', SYNCING:'전체 혜택 동기화 중', PARTIAL:'혜택 추가 반영 중', WAITING:'동기화 준비 중', DISABLED:'데이터 연결 필요', ERROR:'마지막 저장 정보 표시 중' };
         byId('syncStatus').textContent = labels[meta.syncStatus] ?? '공식 목록 상태 확인 필요';
         byId('syncUpdatedAt').textContent = meta.lastSyncedAt ? formatFreshness(meta.lastSyncedAt) : '공식 기준일 확인 중';
         byId('resultSourceStatus').textContent = meta.lastSyncedAt ? `공공데이터 기준 · ${formatDateTime(meta.lastSyncedAt)}` : '공공데이터 기준 · 갱신 시각 확인 필요';
@@ -300,7 +301,7 @@ async function loadMeta() {
         renderCategoryControls(counts);
         if (['SYNCING','PARTIAL'].includes(meta.syncStatus)) setTimeout(loadMeta, 6000);
     } catch {
-        byId('syncStatus').textContent = '저장된 최신 정보 제공 중';
+        byId('syncStatus').textContent = '마지막 저장 정보 표시 중';
         byId('syncUpdatedAt').textContent = '저장된 기준일 확인 필요';
         byId('resultSourceStatus').textContent = '저장된 공식 정보';
     }
@@ -724,16 +725,21 @@ async function loadProgramById(programId) {
     return item;
 }
 
-async function fetchDetail(item) {
-    if (state.detailCache.has(item.id)) return state.detailCache.get(item.id);
+async function fetchDetail(item, {refresh = false} = {}) {
+    const cached = state.detailCache.get(item.id);
+    const lifetime = cached?.detail.sourceLive ? 10 * 60_000 : 60_000;
+    if (!refresh && cached && Date.now() - cached.storedAt < lifetime) {
+        return {...cached.detail, sourceCached:cached.detail.sourceLive};
+    }
     try {
-        const response = await fetch(`/api/programs/${item.id}/detail`);
+        const response = await fetch(`/api/programs/${item.id}/detail${refresh ? '?refresh=true' : ''}`);
         if (!response.ok) throw new Error();
         const detail = await response.json();
-        state.detailCache.set(item.id, detail);
+        state.detailCache.set(item.id, {detail, storedAt:Date.now()});
         return detail;
     } catch {
-        const fallback = { ...item, sourceLive:false, onlineUrl:item.applyUrl, application:applicationChannel(item) };
+        if (cached) return {...cached.detail, sourceCached:cached.detail.sourceLive, refreshFailed:true};
+        const fallback = { ...item, sourceLive:false, refreshFailed:true, onlineUrl:item.applyUrl, application:applicationChannel(item) };
         return fallback;
     }
 }
@@ -749,8 +755,10 @@ function renderBenefitDetail(item, detail) {
     state.activeDetail = merged;
     byId('benefitDetailCategory').textContent = normalizedCategory(merged.category);
     byId('benefitDetailRegion').textContent = merged.region || '전국';
-    byId('benefitDetailSource').textContent = merged.sourceLive ? '공식 상세 연결됨' : '저장 정보 표시 중';
-    byId('benefitDetailSource').classList.toggle('offline', !merged.sourceLive);
+    byId('benefitDetailSource').textContent = merged.sourceLive
+        ? merged.refreshFailed ? '이전 공식 조회 정보' : merged.sourceCached ? '공식 조회 정보' : '공식 상세 연결됨'
+        : '저장 정보 표시 중';
+    byId('benefitDetailSource').classList.toggle('offline', !merged.sourceLive || merged.refreshFailed);
     byId('benefitDetailTitle').textContent = merged.title;
     byId('benefitDetailSummary').textContent = merged.summary || merged.purpose || '공식 상세정보를 확인해주세요.';
     byId('benefitDetailDeadline').textContent = merged.deadline || '공식 안내 확인';
@@ -788,6 +796,12 @@ function renderBenefitDetail(item, detail) {
     if (officialUrl) official.href = officialUrl;
     else official.removeAttribute('href');
     byId('benefitDetailNotice').textContent = merged.sourceLive ? `행정안전부 공공서비스 상세정보${merged.sourceUpdatedAt ? ` · 수정 ${merged.sourceUpdatedAt}` : ''}` : '현재 저장된 정보를 표시합니다. 최종 조건은 공식 안내에서 확인해주세요.';
+    byId('benefitDetailFetchedAt').textContent = merged.sourceFetchedAt
+        ? `공식 조회 ${formatDateTime(merged.sourceFetchedAt)}${merged.sourceCached ? ' · 이전 조회 정보' : ''}` : '공식 조회 시각을 확인할 수 없어 저장 정보를 표시해요.';
+    byId('benefitDetailRefresh').hidden = !merged.refreshAvailable;
+    byId('benefitDetailRefreshStatus').textContent = merged.refreshFailed
+        ? '공식 연결이 지연되어 이전 정보를 표시해요. 잠시 후 다시 확인하거나 공식 안내를 열어주세요.'
+        : merged.refreshLimited ? '최근 1분 안에 확인한 공식 정보예요.' : '';
     syncDetailSaveButton();
     byId('benefitDetailLoading').hidden = true;
     byId('benefitDetailContent').hidden = false;
@@ -802,6 +816,10 @@ function syncDetailSaveButton() {
 }
 
 async function openBenefitDetail(item) {
+    const epoch = ++state.detailRequestEpoch;
+    byId('benefitDetailRefresh').disabled = false;
+    byId('benefitDetailRefresh').removeAttribute('aria-busy');
+    byId('benefitDetailRefresh').textContent = '최신정보 다시 확인';
     state.activeDetail = item;
     rememberProgram(item);
     byId('benefitDetailTitle').textContent = item.title;
@@ -810,7 +828,20 @@ async function openBenefitDetail(item) {
     openDialog(byId('benefitDetailDialog'));
     byId('benefitDetailScroll').scrollTop = 0;
     const detail = await fetchDetail(item);
-    if (state.activeDetail?.id === item.id) renderBenefitDetail(item, detail);
+    if (state.detailRequestEpoch === epoch && byId('benefitDetailDialog').open && state.activeDetail?.id === item.id) renderBenefitDetail(item, detail);
+}
+
+async function refreshBenefitDetail() {
+    const item = state.activeDetail;
+    if (!item || !item.refreshAvailable) return;
+    const epoch = ++state.detailRequestEpoch;
+    const button = byId('benefitDetailRefresh');
+    button.disabled = true; button.setAttribute('aria-busy','true'); button.textContent = '공식 정보 확인 중…';
+    byId('benefitDetailRefreshStatus').textContent = '공식 기관의 현재 정보를 확인하고 있어요.';
+    const detail = await fetchDetail(item, {refresh:true});
+    if (state.detailRequestEpoch !== epoch) return;
+    button.disabled = false; button.removeAttribute('aria-busy'); button.textContent = '최신정보 다시 확인';
+    if (byId('benefitDetailDialog').open && state.activeDetail?.id === item.id) renderBenefitDetail(item, detail);
 }
 
 function callScript(detail) {
@@ -1353,6 +1384,7 @@ byId('benefitDetailPrepare').addEventListener('click', () => { const item = stat
 byId('benefitDetailSave').addEventListener('click', () => state.activeDetail && toggleSaved(state.activeDetail.id));
 byId('copyCallScript').addEventListener('click', () => state.activeDetail && copyText(callScript(state.activeDetail)));
 byId('benefitDetailFeedback').addEventListener('click', openFeedback);
+byId('benefitDetailRefresh').addEventListener('click', refreshBenefitDetail);
 byId('feedbackForm').addEventListener('submit', submitFeedback);
 
 byId('compareToggle').addEventListener('click', openComparison);

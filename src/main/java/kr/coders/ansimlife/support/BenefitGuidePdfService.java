@@ -28,7 +28,7 @@ import java.util.List;
 public class BenefitGuidePdfService {
     private static final Color INK = new Color(32, 43, 61);
     private static final Color MUTED = new Color(101, 113, 135);
-    private static final Color BLUE = new Color(36, 111, 229);
+    private static final Color BLUE = new Color(0, 127, 95);
     private final byte[] regular;
     private final byte[] bold;
 
@@ -163,7 +163,7 @@ public class BenefitGuidePdfService {
         private void notice(String text) throws IOException {
             List<String> lines = wrap(text, bodyFont, 10, 465); float height = lines.size() * 17 + 22;
             y -= 15; need(height + 12);
-            stream.setNonStrokingColor(new Color(240, 245, 253)); stream.addRect(50, y - height + 8, 495, height); stream.fill();
+            stream.setNonStrokingColor(new Color(241, 247, 243)); stream.addRect(50, y - height + 8, 495, height); stream.fill();
             y -= 9;
             for (String line : lines) { write(stream, bodyFont, 10, INK, 65, y, line); y -= 17; }
             y -= 16;
