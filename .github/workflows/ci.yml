@@ -48,4 +48,22 @@ jobs:
         run: mvn -B -DskipTests package
 
       - name: Verify production Docker packaging
-        run: docker build --target build --tag ansimlife-build-check .
+        run: docker build --tag ansimlife-build-check .
+
+      - name: Verify container health, font and PDF download
+        run: |
+          docker run --detach --rm --name ansimlife-runtime-check --publish 127.0.0.1:18080:8080 ansimlife-build-check
+          trap 'docker rm -f ansimlife-runtime-check >/dev/null' EXIT
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:18080/api/health --output /tmp/ansimlife-health.json; then break; fi
+            sleep 2
+          done
+          if ! curl --fail --silent --show-error http://127.0.0.1:18080/api/health; then
+            docker logs --tail 80 ansimlife-runtime-check
+            exit 1
+          fi
+          curl --fail --silent --show-error http://127.0.0.1:18080/fonts/WantedSansVariable.woff2 --output /tmp/ansimlife-font.woff2
+          printf '%s  %s\n' 4259e7e9a172e634c2cb419d793b84148990316341e910443e5d10965b2c8f16 /tmp/ansimlife-font.woff2 | sha256sum --check
+          curl --fail --silent --show-error --retry 3 --retry-all-errors --retry-delay 2 http://127.0.0.1:18080/api/programs/1/guide.pdf --output /tmp/ansimlife-guide.pdf
+          head -c 5 /tmp/ansimlife-guide.pdf | grep -Fx '%PDF-'
+          test $(wc -c < /tmp/ansimlife-guide.pdf) -gt 1000

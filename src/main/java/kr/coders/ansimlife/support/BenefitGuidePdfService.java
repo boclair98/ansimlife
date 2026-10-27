@@ -7,6 +7,9 @@ import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType0Font;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.awt.Color;
@@ -14,6 +17,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -28,13 +32,15 @@ public class BenefitGuidePdfService {
     private final byte[] regular;
     private final byte[] bold;
 
-    public BenefitGuidePdfService() throws IOException {
-        try (var input = new ClassPathResource("pdf-fonts/WantedSans-Regular.ttf").getInputStream()) {
-            regular = input.readAllBytes();
-        }
-        try (var input = new ClassPathResource("pdf-fonts/WantedSans-Bold.ttf").getInputStream()) {
-            bold = input.readAllBytes();
-        }
+    public BenefitGuidePdfService(@Value("${ansimlife.pdf.font-directory:}") String fontDirectory) throws IOException {
+        regular = readFont(fontDirectory, "WantedSans-Regular.ttf");
+        bold = readFont(fontDirectory, "WantedSans-Bold.ttf");
+    }
+
+    private static byte[] readFont(String directory, String name) throws IOException {
+        Resource resource = directory.isBlank() ? new ClassPathResource("pdf-fonts/" + name)
+                : new FileSystemResource(Path.of(directory).resolve(name));
+        try (var input = resource.getInputStream()) { return input.readAllBytes(); }
     }
 
     public byte[] render(SupportProgram program, PublicServiceDetailService.ProgramDetail detail) throws IOException {
