@@ -14,6 +14,7 @@ services:
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
       SESSION_COOKIE_SECURE: "true"
+      ANSIMLIFE_PUBLIC_DATA_SERVICE_KEY: ${secrets.DATA_GO_KR_SERVICE_KEY}
   db:
     type: postgres
     size: 1Gi
