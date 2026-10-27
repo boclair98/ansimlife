@@ -84,7 +84,7 @@
 
 API 추가값: `GET /api/programs?topic=housing|work|family|learn|care|culture`. 빈 값은 기존 검색과 같고 지원하지 않는 값은 400 응답입니다. 응답의 선택적 `deadlineDate`는 `YYYY-MM-DD` 또는 생략이며 기존 응답 필드는 유지합니다. `GET /api/programs/{id}/guide.pdf`는 `application/pdf` 첨부 파일과 `Cache-Control: no-store`를 반환합니다. 없는 공고는 404입니다. Apache PDFBox 3.0.8과 Wanted Sans Regular/Bold TTF를 사용해 한글을 임베딩하고 긴 본문·URL을 줄바꿈·쪽 나눔 처리합니다. 읽을 수 없는 원문 기호는 `?`로 대체할 수 있습니다. DB 스키마·API 키·배포 환경변수 변경은 없습니다.
 
-배포 빌드는 `scripts/ensure-font-assets.sh`로 세 폰트의 SHA-256을 확인합니다. 소스 가져오기 과정에서 바이너리가 빠지거나 변환돼 해시가 달라졌을 때는 같은 공식 Wanted Sans 고정 커밋에서 복원하며, 복원 후 해시가 다르면 빌드를 중단합니다. Docker 빌드는 clean 패키징 후 실제 JAR에 웹·PDF 폰트 세 파일이 모두 포함됐는지도 검사합니다. 정상 체크아웃에서는 폰트를 다시 내려받지 않으며 런타임에는 외부 폰트 요청이 없습니다.
+배포 빌드는 `scripts/ensure-font-assets.sh`로 세 폰트의 SHA-256을 확인합니다. 소스 가져오기 과정에서 바이너리가 빠지거나 변환돼 해시가 달라졌을 때는 같은 공식 Wanted Sans 고정 커밋에서 복원하며, 복원 후 해시가 다르면 빌드를 중단합니다. Maven 리소스는 `src/main/resources` 전체를 필터링 없이 포함하도록 명시했습니다. Docker 빌드는 clean 패키징 후 실제 JAR에 웹·PDF 폰트 세 파일이 모두 포함됐는지도 검사하며 CI에서도 같은 Docker 빌드를 수행합니다. 정상 체크아웃에서는 폰트를 다시 내려받지 않으며 런타임에는 외부 폰트 요청이 없습니다.
 
 로컬 Java 테스트 40개·JavaScript 테스트 9개와 Maven 빌드를 통과했습니다. 360×800·390×844·768×1024·1440×900, 360px의 큰 글씨, 홈·저장·준비·설정·로그인·맞춤·비교·상세·제보·안내문을 실제 화면에서 확인했습니다. 상황 검색 공유 복원, 맞춤 전환, 검색·빈 결과 복구, 저장 검색·정렬, 로그인·로그아웃·준비 기록 복원, PDF 버튼의 실제 다운로드, Enter·Space·Tab·Shift+Tab·Escape와 포커스 복귀를 확인했습니다. API에서 잘못된 요청 거부·계정 격리·기존 기록 보존을 검증하고, 생성된 A4 PDF를 PNG로 렌더링해 한글·간격·페이지를 확인했습니다. 긴 문서 쪽 나눔과 한글 폰트 임베딩은 Java 테스트로 검증합니다. 200% 화면 확대와 실제 보조기기는 미검증입니다. 운영 배포 후에도 화면·API·새 리소스·PDF를 확인해야 합니다.
 

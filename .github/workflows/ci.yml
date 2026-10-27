@@ -46,3 +46,6 @@ jobs:
 
       - name: Build artifact
         run: mvn -B -DskipTests package
+
+      - name: Verify production Docker packaging
+        run: docker build --target build --tag ansimlife-build-check .
