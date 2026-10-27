@@ -1,4 +1,220 @@
+<!-- final-qa-notes -->
+최종 조정: PC 목록의 과거 최소높이(제목54px·설명46px)를 해제해 첫 행 y287·기본70px로 맞춤. 준비목록 요약은 좁은 화면의 한 글자 줄바꿈을 막는 단일 열 정보행으로 구성. 비교창은 전 폭이 아닌681px. 큰 글자360px에서 헤더는 한 줄 조작을 유지하고 본문·폼의 사용자 글자 크기를 보존. 검색 필드 중복 테두리·준비서류 중첩 스크롤·중복 본문 패딩을 제거.
+
 # OpenUI Design Plan
+
+## Variant 1 — 2026-10-28 전체 화면 대조 수정
+
+사용자가 원본과 나란히 비교해 폰트뿐 아니라 배치·간격·버튼과 모든 페이지를 다시 맞추라고 요청했다. 기존 단순 폰트 교체 결과는 승인된 디자인으로 보지 않는다. API·계정·저장 데이터·신청 준비·PDF 계약은 보존한다.
+
+### Resolved inputs
+- Topic: 안심생활 공공혜택 탐색과 신청 준비
+- Offer: 실제 공식 공고 검색·저장·비교·상세·체크리스트·진행 기록·안내문
+- Audience: 한국어 모바일·PC 이용자 전 연령
+- Primary user action: 공고를 찾고 공식 상세·서류를 확인하고 준비
+- Deliverable: 기존 실제 서비스의 모든 화면과 원본/구현 비교 보드
+- Style direction: 네이버페이 공개 메인·상세의 실제 구성과 컴포넌트 규칙 직접 재현
+- Tonal key: 흰 중앙 화면, #f3f5f7 구분 띠, #1e1e23 본문, #defae4 연녹색 행동
+- Icon policy: 기존 안심생활 SVG 유지; 타사 로고/상품 이미지를 서비스 자산으로 복제하지 않음
+- Proof assets: 같은 390×844/1440×900에서 촬영한 원본·실제 서비스, 실제 API 데이터
+- Motion intensity: Minimal, reduced-motion 존중
+
+### 원본 조사와 수정 근거
+- 메인: https://pay.naver.com/benefit/payment/list?firstCategory=ONLINE
+- 상세: https://pay.naver.com/benefit/payment/detail/24278798653388
+- 390px 원본: 헤더 56px+탭 40px, 배너 y120/h97, 칩 시각 높이32/y236, 첫 공고 y287, 썸네일70, 행 간격14. 기존 구현은 추가 제목/비교 바/큰 칩 때문에 목록이 뒤로 밀렸다.
+- 상세 원본: 헤더56, 100px 중앙 이미지(y66), 이름20px/26px·상단25px, 강조20px, 설명16px/22px·위6px, CTA 위24px·높이48px·반경6px·#defae4. 이후9px 회색 띠, 정보행 padding16px/0·라벨16px bold·값16px·간격8px.
+- 기존 상세·준비 화면에는 큰 회색 카드·검정 고정 버튼·좌측 마케팅 칼럼·과도한 패딩이 남아 있었다. 이 구조를 제거하고 흰 단일 열+평평한 정보 구획+연녹색48px 행동으로 통일한다.
+- 참여내역은 로그인으로 연결돼 비공개 원본 내용을 확인하지 않는다. 로그인 입력값을 캡처하거나 이용하지 않는다. 저장·준비·설정·비교는 공개 메인/상세의 확인된 리스트·정보행·폼·버튼 규칙을 적용하며 비공개 페이지를 복제했다고 주장하지 않는다.
+
+### Composition contract
+- Hero archetype: centered, 원본과 같은 작은 검색 배너. 대형 홍보 영역 없음.
+- First-viewport structure: 56px 헤더→40px 탭→97px 검색 모듈→시각32px/조작44px 상황 칩→목록. 결과 제목과 추가 조작은 필터 팝오버로, 비교 선택은 헤더 버튼으로 모아 첫 목록 위치를 원본 y287에 맞춘다.
+- Primary visual/proof artifact: 실제 공고의 70px 분야 아이콘, 제목·요약·기한. 상세는 100px 자체 아이콘과 실제 공고 제목·설명·공식 데이터.
+- Interaction behavior: 기존 검색/필터/저장/비교/계정/폼/새로고침/PDF를 같은 핸들러로 연결. 행 더보기는 저장·비교를 제공하고 키보드/Escape/포커스 복귀를 지원한다.
+- Reuse boundary: 기존 스택, JS 상태·API·스토리지 ID 유지. HTML에서 같은 컴포넌트를 재배치하고 낡은 service.css 시각 중복을 제거해 product.css 한 체계로 관리한다.
+
+### 페이지별 구성과 구체적 토큰
+- 공통: PC 중앙 외곽681~689/내부641, 모바일20px 좌우, 시스템 글꼴 유지, 기본14/20·주요본문16/22·제목20/26. 버튼48/6px, 입력52/6px, 정보 구획간9px 띠 또는1px선, 행16px 패딩, 24px 섹션 여백. 포커스와 대비 유지.
+- 메인/저장: 평면 한 열, 상단 카테고리14→제목16→설명14. 리스트의 큰 대상 보조행은 상세에서 제공하고 목록 설명은 실제 지원내용 미리보기. 더보기 메뉴로 저장·비교 유지. 긴 공고 제목은2행이라 원본 상품행보다 높이가 늘어날 수 있다.
+- 상세: 56px 뒤로/공유 헤더, 중앙100px 아이콘·분야·20px 제목·16px 설명, 48px 연녹색 준비 CTA. 저장/공식 안내/PDF 보조 조작은 작은 유틸리티 행. 이후 기간·지역·담당기관과 대상·서류·연락처를 평평한 행으로 표시. 큰 회색 카드와 검정 하단 슬랩 제거.
+- 준비실: 모든 크기에서 흰 단일 열, 왼쪽 마케팅 패널 제거, 56px 헤더와 실제 공고 제목, 3개 밑줄 단계. 체크리스트52px/체크20, plain 정보행·입력52, 하단48px 이전/다음/공식안내. 진행 데이터와 직접 기록 의미 유지.
+- 저장/준비 목록: 제목20, 설명14, 검색44, 과장된 빈 상태·큰 색 면적 제거. 계정 기록·다음 확인일·정렬/검색/일정 유지.
+- 설정: 큰 글자 타일을44px 세그먼트로, 메뉴를52px 정보행으로. FAQ flat 구분선, 폰트3단계 유지.
+- 로그인/회원가입/계정: 광고 칼럼 없이 중앙460px 폼, 브랜드와20px 제목, 입력52px/6px·라벨14·필드간20px·CTA48. 비밀번호/계정값을 비교 보드에 노출하지 않음.
+- 맞춤·정보수정: 단일 열 폼, 필드간24px, 선택지44px/6px, 고정48px CTA. 실제 레이블과 선택/오류 상태 유지.
+- 비교: 같은681px 화면, 내부 표만 수평 스크롤,14px/20px 셀·14px padding, 하단48px 행동. 기존 최대3개/공유/삭제 유지.
+- 안내문: 같은56px 헤더/48px 내려받기, 흰 문서·20px 제목·16px 본문·24px 구획. 서버 PDF는 기존 임베드 서체와 생성 계약 유지.
+- 출처·동기화 실패·빈 결과·loading·success 상태를 실제 API 기준으로 유지. 한국어 keep-all/min-width:0, safe-area, reduced-motion과 키보드 표시를 검증.
+
+### 실행·검증·비교 보드
+- 실제 수정: index.html, app.js, service-ui.js, product.css, service.css, README.md. 백엔드/키/DB 변경 없음.
+- 실제 버튼 목적지: 검색→searchForm, 상세→openBenefitDetail, 준비→openPreparation, 계정→authForm, PDF→guidePrint, 더보기→기존save/compare 핸들러.
+- 동일 크기 원본/개선 결과를 HTML 비교 보드의2열에 배치하고 메인·상세·저장·준비·설정·계정·맞춤·비교·안내문을 빠짐없이 확인한다. 인증된 원본이 없는 화면은 공개 컴포넌트 기준임을 구분한다.
+- 360×800·390×844·768×1024·1440×900, 큰 글씨·검색/빈 상태·row menu·비교·폼·준비3단계·실제PDF·키보드·콘솔 검증. 관련 정적/JS 테스트와 빌드, 원본push→fork동기화→배포→운영검증.
+
+### Filled generation prompt
+Create one high-concept page for 안심생활의 공공혜택 검색·저장·비교·신청 준비.
+
+## Inputs
+- Topic: 안심생활의 공공혜택 검색·저장·비교·신청 준비.
+- Offer: 공식 API 공고와 상세·제출서류·PDF·계정별 준비 기록
+- Audience: 전 연령의 한국어 이용자, 모바일 우선
+- Primary user action: 검색 또는 상황 선택으로 혜택을 찾고 공식 상세를 확인
+- Deliverable: 기존 Spring Boot와 vanilla HTML/CSS/JS 실제 서비스, 홈페이지와 연결된 전체 화면
+- Style direction: 실측한 네이버페이 결제혜택의 시스템 글꼴·좁은 1열·평면 목록·상단 밑줄 탭을 직접 재현
+- Tonal key: Light, 흰 콘텐츠와 #f3f5f7 외부 바탕, #1e1e23 본문, 짙은 선택 칩
+- Icon policy: 기존 안심생활 SVG를 70px 분야 썸네일에 사용, 타사 로고와 이미지는 사용하지 않음
+- Proof assets: 실제 API 공고와 조회 시각, 원본 화면의 실제 측정 기록; 가상 성과 없음
+- Motion intensity: Minimal, 상태 피드백만 사용하고 reduced-motion 유지
+
+## Objective
+Design one premium, memorable page with a dominant hero and one coherent visual world derived from the topic itself.
+The result should feel specific, intentional, and action-oriented when the concept calls for action, not like a generic startup or SaaS template.
+
+Choose the strongest clear solution.
+Do not collapse the concept into a simpler generic pattern just to make execution easier.
+
+- Treat single-file execution as a packaging constraint, not a creative constraint.
+Do not reduce conceptual ambition, visual specificity, interaction richness, or production quality merely because the deliverable is concise.
+
+## Internal concept choice
+Before composing, decide internally:
+- one dominant hero archetype: centered / asymmetrical / immersive
+- one dominant proof mode: none / embedded gesture / single artifact
+- one palette driver derived from the topic
+- one tonal key: light / mid / dark / topic-derived
+- one motion role: none / minimal / ambient / interactive
+- one icon approach: none / minimal / expressive / topic-native
+- optionally one secondary accent only if it strengthens the main direction without creating a second visual world
+Do not output this planning.
+
+## Non-negotiables
+- Use a strong hero-first composition.
+- Headline: 3-12 words, max 3 lines.
+- Supporting copy: 1-2 short sentences, concise and specific.
+- CTAs are optional. If used, include at most 1 primary and 1 secondary CTA.
+- If a clear next step is central to the offer or concept, include a CTA; otherwise CTA omission is allowed.
+- CTA labels must be specific to the offer and action, not generic.
+- Supporting highlights are optional. If used, show them only once in a single lower support cluster beneath the hero.
+- Keep the hero dominant, focused, readable, and uncluttered.
+- Proof is optional. Use it only if it clearly strengthens the concept.
+- If no real proof assets are provided, do not invent metrics, testimonials, customer logos, screenshots, or fake UI proof.
+- Prefer depth inside the hero, proof gesture, CTA behavior, support copy, or background logic rather than adding extra sections by default.
+
+## Composition
+- Choose the clearest structure for the topic; do not default to generic two-column marketing layouts.
+- A top navigation bar is optional. When used, make it native to the chosen style direction and subordinate to the hero rather than a generic boxed header.
+- The hero may be fully integrated rather than framed.
+- The hero does not need to become a panel, dashboard, device mockup, rounded card, or floating showcase unless the topic genuinely demands that artifact.
+- Build hierarchy through scale, contrast, spacing, alignment, depth, rhythm, and composition before using frames, dividers, or containers.
+- Keep supporting content clearly subordinate to the hero.
+- Do not interpret structural restraint as permission to flatten the concept into a generic minimal layout.
+- Do not use text-on-text layering, typographic collisions, or overlapping live text as a compositional device.
+
+## Visual system
+- Build one coherent visual world derived from the topic itself.
+- Let the topic drive palette, contrast, typography, spacing, geometry, motifs, materials, and motion.
+- Even restrained palettes must feel intentional and specific, not generic premium-neutral.
+- The background must actively contribute mood, depth, and topic logic.
+- If the topic suggests a real system language, physical behavior, or interface grammar, show that directly instead of generic abstract-tech decoration.
+- Treat headline typography as part of the concept, not neutral text.
+- The headline may use topic-derived color, selective emphasis, multi-tone treatment, or gradient accents when they strengthen the concept and remain readable.
+- Do not default the headline to neutral black, white, or near-white unless that is clearly the strongest topic-native choice.
+
+## Background and tonal diversity
+- Premium and atmospheric design may be light, mid-tone, or dark; do not default to dark.
+- Choose the tonal key from the topic, offer, audience, and style direction rather than from generic cinematic or tech aesthetics.
+- Contrast may come from hue, saturation, temperature, texture, density, or scale, not only darkness.
+
+## Proof and concept expression
+- Prefer the minimum visual evidence needed to make the idea feel specific, credible, and native to the topic.
+- If the concept is strongest with typography, atmosphere, and one precise gesture, do that.
+- If a stronger proof artifact is justified, use one legible, unified artifact rather than multiple fragmented panels.
+- Proof may take the form of a signal, trace, contour, command line, path, specimen, structural mark, scene fragment, or other topic-native evidence.
+- Typography itself may carry part of the concept or proof.
+- When appropriate, use one precise typographic gesture—such as selective word emphasis, chromatic offset, gradient emphasis, distortion, signal breakup, or structural interruption—to make the concept feel more specific and alive.
+- Prefer one strong typographic intervention over many scattered decorative effects.
+- Avoid decorative pseudo-proof.
+- Avoid turning simple ideas into framed showcases, dashboard fragments, floating panels, softened slabs, or generic marketing geometry.
+
+## Icons and symbolic language
+- Icons are optional.
+- Use icons only when they improve scanability, recognition, navigation, proof clarity, or support-cluster legibility.
+- Prefer topic-native icon logic over generic startup glyphs.
+- Keep icon style consistent in stroke weight, geometry, corner logic, and detail level.
+- Use icons primarily in clearly secondary roles unless a single topic-native symbol is central to the concept.
+- Do not let icons compete with the hero headline, proof artifact, or CTA hierarchy.
+
+## Support cluster
+- If used, show supporting highlights only once, in a single lower cluster beneath the hero.
+- Each highlight should be short, fast to scan, and clearly secondary.
+- Supporting highlights may use concise icons or symbolic marks when helpful.
+- Support-cluster elements may use subtle motion when it improves scanability, continuity, or atmosphere and remains clearly secondary.
+- Card-like grouping is allowed only inside this lower support cluster.
+- These modules may use at most one light surface treatment, such as a subtle stroke, tonal fill, or very soft shadow.
+- Keep support modules uniform, non-nested, and visually subordinate.
+- Do not use card-like structures in the hero, proof, CTA area, or elsewhere on the page.
+
+## Motion
+- Motion is optional.
+- Use motion only when it supports hierarchy, continuity, feedback, atmosphere, or topic logic.
+- Default to none, minimal, or ambient motion depending on what the concept actually needs.
+- Motion may live in typography, background behavior, proof logic, support-cluster behavior, or interaction feedback.
+- A single key word or short phrase may use subtle text-based motion such as glitch, flicker, jitter, scanline shift, chromatic split, text scramble, pulse, or reveal if it strengthens the concept.
+- Keep motion controlled, readable, non-blocking, and subordinate to clarity.
+- Avoid scrolljacking, attention-hijacking loops, and ornamental animation.
+- Respect reduced-motion preferences.
+
+## Accessibility and readability
+- Preserve strong readability and clear hierarchy at all viewport sizes.
+- Maintain sufficient contrast between text and background.
+- Do not place essential text over busy imagery unless readability remains strong.
+- Avoid cramped spacing, visual collisions, and weak focal hierarchy.
+- Do not place badges, pills, annotations, stickers, or floating interface fragments over essential text.
+- If the deliverable is code, use semantic HTML structure, visible focus states, keyboard-friendly interactions, and reduced-motion handling.
+- When in doubt, preserve legibility over expressive overlap.
+
+## Anti-drift rules
+- Do not drift into bland corporate SaaS styling.
+- Do not default to dashboard aesthetics, feature-grid thinking, boxed-section composition, or template-like modularity.
+- Do not use disconnected motifs, random color choices, or interchangeable abstract-tech shapes.
+- Do not use card-within-card composition, nested surfaces, floating panels, fake proof, or stock-looking UI.
+- Keep one visual world, one dominant hero, and one clear structural logic.
+- Do not allow text, labels, or interface elements to overlap, collide, or sit on top of one another.
+
+## Output
+Return only the final 기존 Spring Boot와 vanilla HTML/CSS/JS 실제 서비스, 홈페이지와 연결된 전체 화면.
+
+If the deliverable is code:
+- Output a complete production-ready file or component.
+- Keep dependencies minimal unless explicitly requested.
+- Make it responsive.
+- Keep support highlights in one lower support cluster only when used.
+
+## Final self-check
+Before returning, verify that the result keeps:
+- one dominant hero
+- one coherent visual world
+- no invented proof
+- no cardification outside the lower support cluster
+- no generic SaaS drift
+- no unnecessary structural fragmentation
+- no nested containment
+- no floating sub-surfaces
+- all text clearly legible and comfortably spaced
+
+The explicit user-selected reference contract above overrides generic creative discretion: match the measured Npay font stack and catalogue composition. Do not design another new hero, large card grid or different typography.
+
+
+Explicit current contract: reproduce the measured public Npay layout and component rules across every Ansimlife screen. The earlier font-only implementation is rejected. No creative substitution of giant cards, side marketing panels or black sticky action slabs.
+
+### Output target
+- src/main/resources/static/index.html and its existing JS/CSS screen files.
+
+## Earlier plans preserved
+<details><summary>Earlier design documentation</summary>
+### Previous plan
 
 ## 2026-10-28 실행 범위와 실측 근거
 
@@ -1539,5 +1755,7 @@ Coders 빌드에서 JAR 리소스가 CI와 다르게 포함되는 점이 확인�
 </details>
 
 공식 API 연동 검증: 비공개 환경변수 등록 전 목록·상세 모두 HTTP 200을 확인했다. 로컬 전체 동기화 READY와 실제 제출서류·조회 시각·1분 재조회 제한을 확인했다. 운영 완료 건수는 배포 후 별도로 검증한다.
+
+</details>
 
 </details>

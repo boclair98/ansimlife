@@ -387,19 +387,18 @@ function programCard(item) {
     const saved = state.savedIds.has(item.id);
     const compared = state.comparisonIds.has(item.id);
     const remainingDays = deadline.label.match(/(\d+)일 남음/);
-    const badgeLabel = remainingDays ? (Number(remainingDays[1]) === 0 ? '오늘 마감' : `D-${remainingDays[1]}`)
-        : deadline.expired ? '모집 종료' : /상시/.test(deadline.label) ? '상시 신청' : '기간 확인';
+    const badgeLabel = remainingDays ? (Number(remainingDays[1]) === 0 ? '오늘' : `D-${remainingDays[1]}`)
+        : deadline.expired ? '종료' : /상시/.test(deadline.label) ? '상시' : '확인';
     const draft = state.drafts.find(value => value.programId === item.id);
     const progress = draft ? `<div class="card-progress"><span><i style="width:${draft.completionPercent}%"></i></span><b>${escapeHtml(journeyLabels[draft.journeyStatus] || '준비 중')}</b></div>` : '';
     const reason = state.diagnosis && item.audienceStatus === 'MATCHED'
         ? `<p class="audience-reason">${escapeHtml(item.audienceReason || '선택한 조건이 지원대상에 포함돼 있어요.')}</p>` : '';
     return `<article class="benefit-card status-${deadline.status.toLowerCase()}" data-action="detail" data-id="${item.id}">
-        <div class="card-visual"><span class="card-thumbnail" aria-hidden="true">${icon(categoryIcons[category] || 'leaf')}</span><span class="deadline-chip ${deadline.status.toLowerCase()}" title="${escapeHtml(deadline.label)}" aria-label="${escapeHtml(deadline.label)}">${escapeHtml(badgeLabel)}</span></div>
+        <div class="card-visual"><span class="card-thumbnail" aria-hidden="true">${icon(categoryIcons[category] || 'leaf')}</span></div>
         <div class="card-copy"><div class="card-meta"><span class="card-category">${escapeHtml(category)}</span><span aria-hidden="true">·</span><span class="card-location">${escapeHtml(item.region || '전국')}</span></div>
         <h3><button class="card-title-button" data-action="detail" data-id="${item.id}" type="button">${escapeHtml(item.title)}</button></h3>
-        <p class="benefit-value">${escapeHtml(cardPreview(item.benefit || item.summary || '지원 내용은 공식 상세 안내에서 확인해주세요.', 110))}</p>
-        <dl class="card-target"><dt>대상</dt><dd>${escapeHtml(cardPreview(item.target || '공식 상세에서 확인해주세요.', 85))}</dd></dl>${reason}${progress}</div>
-        <div class="card-actions"><button class="save-button ${saved ? 'active' : ''}" data-action="save" data-id="${item.id}" type="button" aria-pressed="${saved}" aria-label="${escapeHtml(item.title)} ${saved ? '저장 해제' : '저장'}">${icon('bookmark')}</button><button class="compare-button ${compared ? 'active' : ''}" data-action="compare" data-id="${item.id}" type="button" aria-pressed="${compared}" aria-label="${escapeHtml(item.title)} ${compared ? '비교에서 빼기' : '비교에 담기'}">${icon(compared ? 'check' : 'compare')}<span class="sr-only">${compared ? '비교에 담았어요' : '비교하기'}</span></button></div>
+        <p class="benefit-value">${escapeHtml(cardPreview(item.benefit || item.summary || '지원 내용은 공식 상세 안내에서 확인해주세요.', 110))}</p>${reason}${progress}</div>
+        <div class="card-actions"><span class="deadline-chip ${deadline.status.toLowerCase()}" title="${escapeHtml(deadline.label)}" aria-label="${escapeHtml(deadline.label)}">${escapeHtml(badgeLabel)}</span><details class="card-menu"><summary data-action="menu" data-id="${item.id}" aria-label="${escapeHtml(item.title)} 더보기"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></summary><div class="card-menu-panel"><button class="save-button ${saved ? 'active' : ''}" data-action="save" data-id="${item.id}" type="button" aria-pressed="${saved}" aria-label="${escapeHtml(item.title)} ${saved ? '저장 해제' : '저장'}">${icon('bookmark')}${saved ? '저장 해제' : '저장하기'}</button><button class="compare-button ${compared ? 'active' : ''}" data-action="compare" data-id="${item.id}" type="button" aria-pressed="${compared}" aria-label="${escapeHtml(item.title)} ${compared ? '비교에서 빼기' : '비교에 담기'}">${icon(compared ? 'check' : 'compare')}${compared ? '비교에서 빼기' : '비교에 담기'}</button></div></details></div>
     </article>`;
 }
 
@@ -422,7 +421,7 @@ function renderComparison() {
     byId('compareShare').disabled = !items.length;
     byId('compareClear').disabled = !state.comparisonIds.size;
     if (!items.length) {
-        table.innerHTML = '<div class="compare-empty"><span>＋</span><h3>비교할 혜택을 담아보세요</h3><p>혜택 목록에서 ‘＋ 비교’를 누르면 지원대상과 신청방식을 한 화면에서 비교할 수 있어요.</p></div>';
+        table.innerHTML = '<div class="compare-empty"><span>＋</span><h3>비교할 혜택을 담아보세요</h3><p>혜택 목록의 더보기에서 ‘비교에 담기’를 누르면 지원대상과 신청방식을 한 화면에서 비교할 수 있어요.</p></div>';
         return;
     }
     const rows = [
@@ -476,6 +475,7 @@ async function openComparison() {
 }
 
 function toggleComparison(id) {
+    const previousFocus = document.activeElement;
     if (state.comparisonIds.has(id)) {
         state.comparisonIds.delete(id);
     } else {
@@ -489,7 +489,12 @@ function toggleComparison(id) {
     writeStorage('ansimlife.compare', [...state.comparisonIds]);
     syncCounts();
     renderPrograms(state.visibleItems);
+    renderSaved();
     if (byId('compareDialog').open) renderComparison();
+    if(previousFocus?.matches('[data-action="compare"]') && !previousFocus.isConnected) {
+        const list = byId(document.body.dataset.view === 'saved' ? 'savedList' : 'programList');
+        list.querySelector('[data-action="menu"][data-id="'+id+'"]')?.focus({preventScroll:true});
+    }
 }
 
 function setQuickFilter(filter) {
@@ -574,7 +579,7 @@ function toggleSaved(id) {
     if (state.activeDetail?.id === id) syncDetailSaveButton();
     if(previousFocus?.matches('[data-action="save"]') && !previousFocus.isConnected) {
         const list = byId(document.body.dataset.view === 'saved' ? 'savedList' : 'programList');
-        const replacement = list.querySelector('[data-action="save"][data-id="'+id+'"]');
+        const replacement = list.querySelector('[data-action="menu"][data-id="'+id+'"]');
         (replacement || (document.body.dataset.view === 'saved' ? byId('savedSection').querySelector('h1') : null))?.focus({preventScroll:true});
     }
 }
@@ -755,6 +760,7 @@ function renderBenefitDetail(item, detail) {
     const merged = { ...item, ...detail, application:detail.application ?? applicationChannel(item) };
     state.activeDetail = merged;
     byId('benefitDetailCategory').textContent = normalizedCategory(merged.category);
+    byId('benefitDetailIcon').innerHTML = icon(categoryIcons[normalizedCategory(merged.category)] || 'leaf');
     byId('benefitDetailRegion').textContent = merged.region || '전국';
     byId('benefitDetailSource').textContent = merged.sourceLive
         ? merged.refreshFailed ? '이전 공식 조회 정보' : merged.sourceCached ? '공식 조회 정보' : '공식 상세 연결됨'
@@ -1015,9 +1021,10 @@ function renderInstitutionReceipt(draft) {
 
 function setStep(step) {
     state.activeStep = Math.min(3, Math.max(1, Number(step)));
-    document.querySelectorAll('.stepper [data-step]').forEach(button => button.classList.toggle('active', Number(button.dataset.step) <= state.activeStep));
+    document.querySelectorAll('.stepper [data-step]').forEach(button => { button.classList.toggle('active', Number(button.dataset.step) <= state.activeStep); if (Number(button.dataset.step) === state.activeStep) button.setAttribute('aria-current','step'); else button.removeAttribute('aria-current'); });
     document.querySelectorAll('.step-pane').forEach(pane => pane.classList.toggle('active', Number(pane.dataset.pane) === state.activeStep));
     syncPreparationActions();
+    byId('preparationDialog').querySelector('.step-content').scrollTop = 0;
     if (state.activeStep === 2) updateReview();
 }
 
@@ -1298,7 +1305,7 @@ async function showSaved() {
 
 function handleProgramAction(event) {
     const action = event.target.closest('[data-action]');
-    if (!action) return;
+    if (!action || action.dataset.action === 'menu') return;
     const id = Number(action.dataset.id);
     if (action.dataset.action === 'remove-saved') { toggleSaved(id); return; }
     if (action.dataset.action === 'retry-saved') {

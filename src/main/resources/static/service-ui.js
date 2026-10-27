@@ -4,6 +4,7 @@
     function show(view, focus = true) {
         const next = views.includes(view) ? view : 'discover';
         document.body.dataset.view = next;
+        document.querySelector('.catalogue-options').open = false;
         if (next === 'discover' || next === 'saved') {
             byId(next === 'saved' ? 'savedList' : 'programList').before(byId('comparisonDock'));
         }
@@ -41,6 +42,9 @@
         if(link) { event.preventDefault(); show(link.dataset.viewLink || 'discover'); }
         const size = event.target.closest('button[data-text-size]');
         if(size) { setTextSize(size.dataset.textSize,true); byId('textSizeMenu').open=false; }
+        document.querySelectorAll('.card-menu[open]').forEach(menu=>{if(!menu.contains(event.target)) menu.open=false;});
+        const filters = document.querySelector('.catalogue-options');
+        if(filters.open && !filters.contains(event.target)) filters.open=false;
         const menu = byId('textSizeMenu');
         if(menu.open && !menu.contains(event.target)) menu.open=false;
         const section = event.target.closest('.settings-rail a');
@@ -55,6 +59,7 @@
         if(event.target.closest('.category-heading a')) { event.preventDefault(); byId('resetSearch').click(); byId('programsHeading').scrollIntoView({block:'start',behavior:preferredScrollBehavior()}); }
     });
     document.addEventListener('keydown',event=>{
+        if(event.key==='Escape') { const row=document.activeElement?.closest('.card-menu[open]'); if(row){row.open=false;row.querySelector('summary').focus();event.preventDefault();return;} const filters=document.querySelector('.catalogue-options'); if(filters.open){filters.open=false;filters.querySelector('summary').focus();event.preventDefault();return;} }
         if(event.key==='Escape' && byId('textSizeMenu').open) { byId('textSizeMenu').open=false; byId('textSizeMenu').querySelector('summary').focus(); }
     });
     byId('settingsAccount').addEventListener('click',()=>openAuth());
