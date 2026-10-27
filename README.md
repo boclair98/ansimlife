@@ -84,6 +84,10 @@
 
 API 추가값: `GET /api/programs?topic=housing|work|family|learn|care|culture`. 빈 값은 기존 검색과 같고 지원하지 않는 값은 400 응답입니다. 응답의 선택적 `deadlineDate`는 `YYYY-MM-DD` 또는 생략이며 기존 응답 필드는 유지합니다. `GET /api/programs/{id}/guide.pdf`는 `application/pdf` 첨부 파일과 `Cache-Control: no-store`를 반환합니다. 없는 공고는 404입니다. Apache PDFBox 3.0.8과 Wanted Sans Regular/Bold TTF를 사용해 한글을 임베딩하고 긴 본문·URL을 줄바꿈·쪽 나눔 처리합니다. 읽을 수 없는 원문 기호는 `?`로 대체할 수 있습니다. DB 스키마·API 키·배포 환경변수 변경은 없습니다.
 
+운영 모바일 화면에서는 Coders가 제공하는 `--coders-widget-bottom` 변수로 후원 위젯을 하단 메뉴 위에 배치합니다. 비교 항목이 있을 때는 비교 바로가기도 피해 이동하며 후원·비교·기본 메뉴를 모두 유지합니다.
+
+2026-10-27 운영 점검 기준 저장 공고는 11,030건이고 동기화 상태는 `DISABLED`였습니다. 현재 저장된 공고의 검색·상세·PDF를 이용할 수 있으며 자동 갱신과 공식 상세 실시간 조회를 사용하려면 서버의 `DATA_GO_KR_SERVICE_KEY`를 연결해야 합니다. 화면에서도 데이터 연결 필요와 갱신 시각 확인 필요를 표시하며, 최신 모집 여부는 공식 기관에서 확인해야 합니다.
+
 배포 빌드는 `scripts/ensure-font-assets.sh`로 세 폰트의 SHA-256을 확인합니다. 소스 가져오기 과정에서 바이너리가 빠지거나 변환돼 해시가 달라졌을 때는 같은 공식 Wanted Sans 고정 커밋에서 복원하며, 복원 후 해시가 다르면 빌드를 중단합니다. Maven 리소스는 `src/main/resources` 전체를 필터링 없이 포함하도록 명시했습니다. Coders 빌드에서 JAR의 폰트 리소스가 누락되는 차이를 확인해 Docker는 PDF 폰트를 `/app/pdf-fonts`, 웹 파일을 `/app/public`에 별도로 복사합니다. Docker의 `-Dansimlife.pdf.font-directory=/app/pdf-fonts` 설정으로 비공개 컨테이너 경로의 PDF 폰트를 읽습니다. 이 설정이 없는 로컬 Java 실행은 classpath 폰트를 사용합니다. CI는 전체 Docker 이미지를 빌드하고 실제 컨테이너의 health·웹 폰트 해시·PDF 다운로드까지 검사합니다. 정상 체크아웃에서는 폰트를 다시 내려받지 않으며 런타임에는 외부 폰트 요청이 없습니다.
 
 로컬 Java 테스트 41개·JavaScript 테스트 9개와 Maven 빌드를 통과했습니다. 360×800·390×844·768×1024·1440×900, 360px의 큰 글씨, 홈·저장·준비·설정·로그인·맞춤·비교·상세·제보·안내문을 실제 화면에서 확인했습니다. 상황 검색 공유 복원, 맞춤 전환, 검색·빈 결과 복구, 저장 검색·정렬, 로그인·로그아웃·준비 기록 복원, PDF 버튼의 실제 다운로드, Enter·Space·Tab·Shift+Tab·Escape와 포커스 복귀를 확인했습니다. API에서 잘못된 요청 거부·계정 격리·기존 기록 보존을 검증하고, 생성된 A4 PDF를 PNG로 렌더링해 한글·간격·페이지를 확인했습니다. 긴 문서 쪽 나눔과 한글 폰트 임베딩은 Java 테스트로 검증합니다. 200% 화면 확대와 실제 보조기기는 미검증입니다. 운영 배포 후에도 화면·API·새 리소스·PDF를 확인해야 합니다.
