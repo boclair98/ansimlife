@@ -45,6 +45,10 @@
         document.querySelectorAll('.card-menu[open]').forEach(menu=>{if(!menu.contains(event.target)) menu.open=false;});
         const filters = document.querySelector('.catalogue-options');
         if(filters.open && !filters.contains(event.target)) filters.open=false;
+        if(filters.open && event.target.closest('#categoryGrid [data-category],#quickFilters button,#resetSearch,#diagnosisOpen')) {
+            filters.open=false;
+            if(!document.querySelector('dialog[open]')) filters.querySelector('summary').focus({preventScroll:true});
+        }
         const menu = byId('textSizeMenu');
         if(menu.open && !menu.contains(event.target)) menu.open=false;
         const section = event.target.closest('.settings-rail a');
