@@ -147,8 +147,7 @@ body[data-view=prepare] .comparison-dock,body[data-view=settings] .comparison-do
 .card-target,.card-category,.card-location,.deadline-chip,.data-note,.saved-result-count {letter-spacing:0}
 #count,.application-summary strong,.application-progress b,.member-check {font-variant-numeric:tabular-nums}
 @media(max-width:1100px) {
-  body {--coders-widget-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
-  body[data-view=discover]:has(#comparisonDock:not([hidden])),body[data-view=saved]:has(#comparisonDock:not([hidden])) {--coders-widget-bottom:calc(200px + env(safe-area-inset-bottom,0px))}
+  [data-coders-support][data-coders-support-fixed] {position:static!important;width:max-content;max-width:calc(100% - 40px);margin:24px 20px 112px auto}
   .hero-intro {grid-template-columns:minmax(0,1fr) 240px;gap:28px;min-height:190px}
   .service-hero h1 {font-size:2.5rem}
   .category-shortcuts {grid-template-columns:repeat(10,minmax(0,1fr));gap:4px}
