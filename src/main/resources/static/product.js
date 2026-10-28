@@ -1,7 +1,14 @@
 (function () {
     'use strict';
     const core = window.AnsimWorkflow;
-    const topicIcons = {housing:'home',work:'work',family:'heart',learn:'book',care:'care',culture:'sun'};
+    const topicDescriptions = {housing:'집을 구하고, 이사할 때',work:'새로운 일을 시작할 때',family:'가족을 맞이하고 키울 때',learn:'배우고 성장하고 싶을 때',care:'건강한 일상을 지킬 때',culture:'쉬어 가는 시간이 필요할 때'};
+    document.addEventListener('error', event => {
+        if (event.target instanceof HTMLImageElement && event.target.closest('.home-cover,.detail-photo,.topic-photo')) {
+            const frame = event.target.closest('.home-cover,.detail-photo,.topic-photo');
+            frame.classList.add('photo-unavailable');
+            if (frame.classList.contains('detail-photo')) frame.hidden = true;
+        }
+    }, true);
     let activeGuideId = null;
     let guideDownloadController = null;
 
@@ -53,7 +60,7 @@
         openDialog(byId('guideDialog'));
     }
 
-    byId('topicList').innerHTML = Object.entries(core.topics).map(([key,label]) => `<button data-topic="${key}" type="button" aria-pressed="false">${icon(topicIcons[key])}<span>${label}</span></button>`).join('');
+    byId('topicList').innerHTML = Object.entries(core.topics).map(([key,label]) => `<button data-topic="${key}" type="button" aria-pressed="false"><span class="topic-photo"><img src="/assets/photos/${key}-thumb.webp" width="400" height="300" alt="" loading="lazy" decoding="async"></span><span class="topic-name">${label}${icon('chevron')}</span><small>${topicDescriptions[key]}</small></button>`).join('');
     byId('topicList').addEventListener('click', event => {
         const button = event.target.closest('[data-topic]');
         if (!button) return;

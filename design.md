@@ -1,41 +1,45 @@
 # OpenUI Design Plan
 
-## Variant 1 — 표지부터 읽는 생활 혜택
+## 2026-10-28 사진 중심 서비스 디자인 — 현재 구현 범위
 
-### 서비스와 문제 근거
-안심생활은 실제 정부·지자체 공고를 검색·저장·비교하고 신청 준비를 돕는다. 직전 결과는 사용자가 거부했다. 토스뱅크 youth-2026 원본의 가장 큰 요소인 표지를 생략한 채 글자 크기만 맞췄고, 2단 헤더에 필터·비교·글자 크기까지 밀집했다. 목록은 작은 회색 아이콘과 말줄임표로 반복되며 상세는 화면 가운데 좁은 앱 패널이었다. 사용자 요구는 글꼴 교체가 아니라 원본과 닮은 완성된 구성이다.
-원본을 2026-10-28 재측정했다: 660×358px 표지, 16px 모서리, 표지 뒤 60px 여백, 36px/46.8px/700 제목, 24px/38.4px 소제목, 17px/27.2px 본문. 원본 사진·브랜드 폰트·로고 대신 자체 자산과 합법적 자체 호스팅 폰트를 쓴다.
+### 서비스와 실제 문제
+안심생활은 정부·지자체 혜택 검색, 저장·비교, 공식 상세 확인과 신청 준비를 돕는 서비스다. 모든 연령의 한국어 사용자가 대상이며 첫 행동은 검색 또는 생활 주제 선택이다. 현재 index.html은 홈과 모든 상세에 같은 생성 삽화를 반복하며 홈은 660px 기사 폭에 갇혀 PC의 탐색 공간을 쓰지 못한다. product.js의 여섯 주제 버튼은 글자로만 구별된다. 사용자는 실제 사진을 넣고 디자이너가 구성한 수준으로 다듬기를 요청했다.
 
 ### Resolved inputs
-- Topic: 생활에 필요한 공공혜택을 쉽게 읽고 찾는 안심생활
-- Offer: 실제 공고 검색·상세·저장·비교·신청 준비·PDF
-- Audience: 모든 연령의 한국어 모바일·PC 사용자
-- Primary user action: 검색하거나 상황을 선택하여 실제 혜택 상세 읽기
-- Deliverable: 기존 Spring Boot 정적 HTML/CSS/JS 전체 서비스 수정
-- Style direction: Tossbank youth-2026의 표지 → 작은 분야 표시 → 제목 → 설명 → 본문 순서를 그대로 따른 밝은 편집 디자인
-- Tonal key: Light, 흰색·짙은 회색·파란 조작 색상
-- Icon policy: 기존 조작 SVG 유지, 본문 카드의 의미 없는 회색 아이콘 반복 제거
-- Proof assets: 실제 공공데이터 API 공고만. 새 표지는 사실 증거가 아닌 자체 제작한 장식 삽화
-- Motion intensity: Minimal, 버튼 반응과 reduced-motion만
+- Topic: 내 생활에 필요한 공공혜택
+- Offer: 실제 혜택 검색·저장·비교·공식 상세·신청 준비·PDF
+- Audience: 남녀노소 한국어 PC·모바일 사용자
+- Primary user action: 검색 또는 여섯 생활 주제 선택
+- Deliverable: 기존 Spring Boot 정적 HTML/CSS/JS 서비스 한 가지 완성 디자인
+- Style direction: 생활 사진을 쓰는 밝고 차분한 편집 디자인
+- Tonal key: Light, 흰색 바탕과 따뜻한 자연광 사진, 파란 행동 색상
+- Icon policy: 검색·저장·비교 등 기존 SVG 조작 아이콘 유지
+- Proof assets: 실제 공식 API 데이터. 생활 사진은 주제 장식이며 제공기관의 시설·수혜자 사진으로 제시하지 않는다.
+- Motion intensity: Minimal, 짧은 색 변화만; reduced-motion 유지
 
 ### Composition contract
-- Hero archetype: centered reading column with left-aligned type
-- First-viewport structure: PC 단일 행 전폭 헤더72px → 중앙660px 표지와 60px 제목 여백 → 36px 제목 → 검색. 모바일은 헤더와 간결한 메뉴, 342×186px 표지, 32px 제목 여백, 28px 제목, 실제 검색이 첫 화면 안에 들어온다.
-- Primary visual/proof artifact: 안심생활 전용 파란 생활 삽화(집·책·가방·사람), 카드의 실제 공고 제목·내용은 API 원문
-- Interaction behavior: 검색 폼·상황 칩·상세·저장·비교·준비·인증·PDF·오류 처리 유지. 필터와 비교를 결과 옆으로 옮겨 조작 맥락을 명확히 한다. 상세는 전체 창의 흰 기사 페이지로 열고 가운데660px 읽기 칼럼, 별도 하단 행동 영역을 둔다.
-- Reuse boundary: 전체 페이지의 헤더·본문 시작선·제목 위계·글꼴·컨트롤 통일. 목록은 읽기형 행, 상세는 기사, 준비는 단계별 폼이다. 인증은560px 읽기 폼.
+- Hero archetype: asymmetrical editorial. 생활의 메시지·검색과 큰 실제 거실 사진을 수평으로 정렬한다. generic dashboard나 가짜 통계 없음.
+- First-viewport structure: 72px 헤더 → 64px 여백 → 왼쪽 소개/검색, 오른쪽 사진 → 6개 생활 주제 사진 버튼. 모바일은 소개/검색 → 낮은 가로 사진 → 3열 주제 탐색으로 순서를 바꾼다.
+- Primary visual/proof artifact: 자연광 거실 사진과 주제별 실제 사진 6종. 정보의 근거는 공고 본문과 공식 출처.
+- Interaction behavior: 검색 버튼은 searchForm 기존 submit; 주제 버튼은 기존 data-topic 이벤트로 API를 필터링한다. 카드 상세·저장·비교·내 조건·공식 링크·신청 준비·PDF 계약 유지.
+- Reuse boundary: 탐색에는 사진, 상세에는 주제별 표지와 660px 읽기 칼럼. 저장에는 같은 읽기형 목록. 준비·인증·설정·가이드에는 사진을 억지로 추가하지 않고 기존 타이포그래피와 컨트롤을 유지한다.
 
-### 구체적인 시각 규칙
-본문660px, 헤더1080px, 비교960px. 흰색#fff, 제목#191f28, 본문#333d4b, 보조#6b7684, 옅은 면#f5f6f8, 선#e5e8eb, 주요#0064ff/흰색, hover#1b64da. Pretendard Variable v1.3.9 자체 호스팅, 대체 시스템 한글 고딕. PC 제목36/1.3/700, 모바일28/1.4/700, 본문17/1.65/400, 소제목24/1.5/700, 메타14/1.6. 글자 크기 설정은 유지한다. 간격8·12·16·24·32·40·60·80, 모바일24px 거터. 검색56px, 버튼52~56px·12px 반경, 모든 터치44px 이상.
-홈 표지 → 소개 → 검색 →6개 생활 상황 → 결과. 분야·정렬은 결과에 위치한 펼침 메뉴. 목록은 왼쪽 텍스트, 우측 작은 화살표; 제목20px, 지원 설명16px, 분야와 지역14px. 목록 아래 행에 실제 기한과 저장·비교를 표시하여 숨겨진 더보기 조작을 줄인다. 상세는 필수 사실을 읽기 좋은 요약, 그 아래 장별 본문과 공식 출처; 과도한 구분선·번호·짙은 배경 제거. 준비·저장·설정·인증도 첫 제목과 본문 시작선을 맞춘다.
-새 표지는 image_gen 내장 도구로 제작한 원본 삽화. 텍스트와 데이터는 삽화에 합성하지 않는다. 데코 이미지 alt는 빈 값이다. 포커스·한국어 keep-all·min-width0·큰 글자·reduced-motion·empty/error/loading 유지.
+### 메시지와 행동
+제목: 내 생활에 필요한 도움, 여기서 찾아보세요. 설명: 주거부터 일자리, 가족 돌봄까지. 내게 맞는 정부·지자체 혜택을 찾고 준비해요.
+주 CTA: 혜택 검색 → #searchForm 기존 핸들러. 보조 행동: 주거·이사 등 여섯 주제 → #topicList 기존 핸들러. 추가 유도는 결과 옆 기존 #diagnosisOpenSecondary만 사용한다.
 
-### 수정 경로와 검증
-static/index.html, product.css, app.js(카드 마크업 및 상세 장식만), product.js(필터 위치 변경에 따른 이벤트가 필요할 때), assets/life-cover.png, README.md. 모든 ID·API·인증·저장키·핸들러 계약 유지. source Java 수정 없음.
-기존 Maven StaticAssetsTest/package, JS9개 테스트, DOM ID·비밀값 점검. 브라우저360×800·390×844·768×1024·1440×900에서 홈·목록·상세·저장·준비·설정·인증·비교·진단·가이드·제보 확인. 메뉴·필터·저장·검색·공식 상세·PDF·키보드 확인. 기존 배포 승인 범위에서 canonical → fork 동기화 → Coders ready → 운영 화면 확인.
+### 시각 규칙과 섹션
+기존 Pretendard Variable 1.3.9/OFL·시스템 한글 고딕 유지. 제목 PC44/1.3/700, 모바일30/1.4/700; 본문17/1.65/400, 주제명16/1.5/600, 목록 제목20/1.5/650. 색상 #191f28 제목, #333d4b 본문, #6b7684 보조, #0064ff 주요 버튼, #f5f6f8 보조면, #e5e8eb 경계. 홈 폭1128px(내용1080), 상세720px(내용660). PC 거터24, 모바일24. 간격8/12/16/24/32/48/64/80. 사진 반경20~24, 검색12, 작은 주제 사진14. 버튼은44px 이상.
+홈 다음은 6주제 사진 탐색, 실제 결과 목록, 맞춤 조건·이용 가이드. PC 결과는 넓은 읽기 목록과280px 보조 칼럼, 태블릿 이하 단일 칼럼. 모바일 주제3열, 사진 비율4:3. 목록 제목을 좁히는 반복 사진을 넣지 않고 상세와 주제 탐색에 사진 역할을 집중한다.
+
+### 실제 자산·접근성
+Unsplash 공식 무료 사진 페이지와 License를 확인한 6종: Kevin Lieder(거실), JESHOOTS.COM(작업 책상), Luise and Nic(아기 신발), Kelly Sikkema(노트), Ries Bosch(공원), Keiteu Ko(부산 해변). assets/README.md와 photos/credits.json에 출처·라이선스·사용 용도를 기록한다. CDN 변환으로 WebP cover1320×880/thumb400×300을 내려받아 자체 호스팅. home은 반응형 srcset으로 모바일에 작은 파일. 주제 이미지는 버튼 텍스트가 의미를 전달하므로 alt="". 상세에 '분야를 표현한 참고 사진'과 촬영자 링크로 오인을 방지. 원본 API와 사진의 연동은 분류 기준이며 자격 판단이 아니다. 실패 시 텍스트·조작은 그대로 쓸 수 있고 사진 프레임을 접는다.
+
+### 경로·검증
+index.html, product.css, product.js, app.js, assets/photos/*, assets/README.md, README.md. Java/API·인증·브라우저 저장키 보존. JS 문법/9개 테스트와 Maven 테스트/패키지. 360×800·390×844·768×1024·1440×900에서 홈/주제목록/상세/저장/준비/설정/인증/비교/진단/가이드 확인. 검색·주제 토글·저장·비교·상세→준비·키보드 포커스, 이미지 로딩·폭·컨트롤/콘솔 확인. 기존 배포 승인에 따라 canonical → 실제 fork 동기화 → Coders ready → 운영 API/자산/화면 검증.
 
 ### Output target
-- Path: src/main/resources/static/index.html 및 연결된 정적 코드
+src/main/resources/static/index.html 및 기존 연결 CSS/JS, 한 가지 완성된 디자인.
 
 ### Filled generation prompt
 Create one high-concept page for 안심생활 공공혜택 검색과 신청 준비.
@@ -46,10 +50,10 @@ Create one high-concept page for 안심생활 공공혜택 검색과 신청 준�
 - Audience: 남녀노소 한국어 모바일·PC 이용자
 - Primary user action: 혜택 검색 후 공식 상세를 읽고 신청 준비로 이동
 - Deliverable: 기존 Spring Boot 정적 HTML/CSS/JS 전체 서비스 화면
-- Style direction: 사용자가 지정한 Tossbank youth-2026 기사의 넓은 문단·타이포그래피 중심 편집 디자인
+- Style direction: 생활 사진과 Tossbank youth-2026의 읽기 쉬운 타이포그래피를 결합한 밝은 편집 디자인
 - Tonal key: Light: 흰 배경·짙은 회색 텍스트·절제한 파란 조작 색상
 - Icon policy: 기존 SVG 아이콘을 탐색·조작에만 사용
-- Proof assets: 실제 공공데이터 API 공고와 공식 상세·출처·조회 시간
+- Proof assets: 실제 공공데이터 API 공고·출처·조회 시간. 사진은 혜택 제공 현장의 증거가 아닌 주제별 이미지이며 출처를 기록한다
 - Motion intensity: Minimal: 조작 피드백만, reduced-motion 지원
 
 ## Objective
@@ -203,10 +207,10 @@ Before returning, verify that the result keeps:
 - Audience: 남녀노소 한국어 모바일·PC 이용자
 - Primary user action: 혜택 검색 후 공식 상세를 읽고 신청 준비로 이동
 - Deliverable: 기존 Spring Boot 정적 HTML/CSS/JS 전체 서비스 화면
-- Style direction: 사용자가 지정한 Tossbank youth-2026 기사의 넓은 문단·타이포그래피 중심 편집 디자인
+- Style direction: 생활 사진과 Tossbank youth-2026의 읽기 쉬운 타이포그래피를 결합한 밝은 편집 디자인
 - Tonal key: Light: 흰 배경·짙은 회색 텍스트·절제한 파란 조작 색상
 - Icon policy: 기존 SVG 아이콘을 탐색·조작에만 사용
-- Proof assets: 실제 공공데이터 API 공고와 공식 상세·출처·조회 시간
+- Proof assets: 실제 공공데이터 API 공고·출처·조회 시간. 사진은 혜택 제공 현장의 증거가 아닌 주제별 이미지이며 출처를 기록한다
 - Motion intensity: Minimal: 조작 피드백만, reduced-motion 지원
 
 ### Composition contract
@@ -250,10 +254,10 @@ Create one high-concept page for 안심생활 공공혜택 검색과 신청 준�
 - Audience: 남녀노소 한국어 모바일·PC 이용자
 - Primary user action: 혜택 검색 후 공식 상세를 읽고 신청 준비로 이동
 - Deliverable: 기존 Spring Boot 정적 HTML/CSS/JS 전체 서비스 화면
-- Style direction: 사용자가 지정한 Tossbank youth-2026 기사의 넓은 문단·타이포그래피 중심 편집 디자인
+- Style direction: 생활 사진과 Tossbank youth-2026의 읽기 쉬운 타이포그래피를 결합한 밝은 편집 디자인
 - Tonal key: Light: 흰 배경·짙은 회색 텍스트·절제한 파란 조작 색상
 - Icon policy: 기존 SVG 아이콘을 탐색·조작에만 사용
-- Proof assets: 실제 공공데이터 API 공고와 공식 상세·출처·조회 시간
+- Proof assets: 실제 공공데이터 API 공고·출처·조회 시간. 사진은 혜택 제공 현장의 증거가 아닌 주제별 이미지이며 출처를 기록한다
 - Motion intensity: Minimal: 조작 피드백만, reduced-motion 지원
 
 ## Objective
@@ -2162,3 +2166,46 @@ Coders 빌드에서 JAR 리소스가 CI와 다르게 포함되는 점이 확인�
 </details>
 
 </details>
+
+
+---
+## 이전 설계 기록 (사진 적용 전)
+
+# OpenUI Design Plan
+
+## Variant 1 — 표지부터 읽는 생활 혜택
+
+### 서비스와 문제 근거
+안심생활은 실제 정부·지자체 공고를 검색·저장·비교하고 신청 준비를 돕는다. 직전 결과는 사용자가 거부했다. 토스뱅크 youth-2026 원본의 가장 큰 요소인 표지를 생략한 채 글자 크기만 맞췄고, 2단 헤더에 필터·비교·글자 크기까지 밀집했다. 목록은 작은 회색 아이콘과 말줄임표로 반복되며 상세는 화면 가운데 좁은 앱 패널이었다. 사용자 요구는 글꼴 교체가 아니라 원본과 닮은 완성된 구성이다.
+원본을 2026-10-28 재측정했다: 660×358px 표지, 16px 모서리, 표지 뒤 60px 여백, 36px/46.8px/700 제목, 24px/38.4px 소제목, 17px/27.2px 본문. 원본 사진·브랜드 폰트·로고 대신 자체 자산과 합법적 자체 호스팅 폰트를 쓴다.
+
+### Resolved inputs
+- Topic: 생활에 필요한 공공혜택을 쉽게 읽고 찾는 안심생활
+- Offer: 실제 공고 검색·상세·저장·비교·신청 준비·PDF
+- Audience: 모든 연령의 한국어 모바일·PC 사용자
+- Primary user action: 검색하거나 상황을 선택하여 실제 혜택 상세 읽기
+- Deliverable: 기존 Spring Boot 정적 HTML/CSS/JS 전체 서비스 수정
+- Style direction: Tossbank youth-2026의 표지 → 작은 분야 표시 → 제목 → 설명 → 본문 순서를 그대로 따른 밝은 편집 디자인
+- Tonal key: Light, 흰색·짙은 회색·파란 조작 색상
+- Icon policy: 기존 조작 SVG 유지, 본문 카드의 의미 없는 회색 아이콘 반복 제거
+- Proof assets: 실제 공공데이터 API 공고만. 새 표지는 사실 증거가 아닌 자체 제작한 장식 삽화
+- Motion intensity: Minimal, 버튼 반응과 reduced-motion만
+
+### Composition contract
+- Hero archetype: centered reading column with left-aligned type
+- First-viewport structure: PC 단일 행 전폭 헤더72px → 중앙660px 표지와 60px 제목 여백 → 36px 제목 → 검색. 모바일은 헤더와 간결한 메뉴, 342×186px 표지, 32px 제목 여백, 28px 제목, 실제 검색이 첫 화면 안에 들어온다.
+- Primary visual/proof artifact: 안심생활 전용 파란 생활 삽화(집·책·가방·사람), 카드의 실제 공고 제목·내용은 API 원문
+- Interaction behavior: 검색 폼·상황 칩·상세·저장·비교·준비·인증·PDF·오류 처리 유지. 필터와 비교를 결과 옆으로 옮겨 조작 맥락을 명확히 한다. 상세는 전체 창의 흰 기사 페이지로 열고 가운데660px 읽기 칼럼, 별도 하단 행동 영역을 둔다.
+- Reuse boundary: 전체 페이지의 헤더·본문 시작선·제목 위계·글꼴·컨트롤 통일. 목록은 읽기형 행, 상세는 기사, 준비는 단계별 폼이다. 인증은560px 읽기 폼.
+
+### 구체적인 시각 규칙
+본문660px, 헤더1080px, 비교960px. 흰색#fff, 제목#191f28, 본문#333d4b, 보조#6b7684, 옅은 면#f5f6f8, 선#e5e8eb, 주요#0064ff/흰색, hover#1b64da. Pretendard Variable v1.3.9 자체 호스팅, 대체 시스템 한글 고딕. PC 제목36/1.3/700, 모바일28/1.4/700, 본문17/1.65/400, 소제목24/1.5/700, 메타14/1.6. 글자 크기 설정은 유지한다. 간격8·12·16·24·32·40·60·80, 모바일24px 거터. 검색56px, 버튼52~56px·12px 반경, 모든 터치44px 이상.
+홈 표지 → 소개 → 검색 →6개 생활 상황 → 결과. 분야·정렬은 결과에 위치한 펼침 메뉴. 목록은 왼쪽 텍스트, 우측 작은 화살표; 제목20px, 지원 설명16px, 분야와 지역14px. 목록 아래 행에 실제 기한과 저장·비교를 표시하여 숨겨진 더보기 조작을 줄인다. 상세는 필수 사실을 읽기 좋은 요약, 그 아래 장별 본문과 공식 출처; 과도한 구분선·번호·짙은 배경 제거. 준비·저장·설정·인증도 첫 제목과 본문 시작선을 맞춘다.
+새 표지는 image_gen 내장 도구로 제작한 원본 삽화. 텍스트와 데이터는 삽화에 합성하지 않는다. 데코 이미지 alt는 빈 값이다. 포커스·한국어 keep-all·min-width0·큰 글자·reduced-motion·empty/error/loading 유지.
+
+### 수정 경로와 검증
+static/index.html, product.css, app.js(카드 마크업 및 상세 장식만), product.js(필터 위치 변경에 따른 이벤트가 필요할 때), assets/life-cover.png, README.md. 모든 ID·API·인증·저장키·핸들러 계약 유지. source Java 수정 없음.
+기존 Maven StaticAssetsTest/package, JS9개 테스트, DOM ID·비밀값 점검. 브라우저360×800·390×844·768×1024·1440×900에서 홈·목록·상세·저장·준비·설정·인증·비교·진단·가이드·제보 확인. 메뉴·필터·저장·검색·공식 상세·PDF·키보드 확인. 기존 배포 승인 범위에서 canonical → fork 동기화 → Coders ready → 운영 화면 확인.
+
+### Output target
+- Path: src/main/resources/static/index.html 및 연결된 정적 코드

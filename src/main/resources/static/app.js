@@ -753,9 +753,40 @@ function setDetailSection(name, id, value) {
     byId(id).textContent = value || '';
 }
 
+// Curated decorative photographs; never interpreted as an official service image.
+const lifePhotos = Object.freeze({
+    housing: {author:'Kevin Lieder', page:'5T_XETRABHs'},
+    work: {author:'JESHOOTS.COM', page:'pUAM5hPaCRI'},
+    family: {author:'Luise and Nic', page:'9BMvbnkwVZ0'},
+    learn: {author:'Kelly Sikkema', page:'hBdaqrr5Z3k'},
+    care: {author:'Ries Bosch', page:'7Ym9PFIPYT4'},
+    culture: {author:'Keiteu Ko', page:'O__TF8SIfZM'}
+});
+function lifePhotoTopic(item) {
+    const category = normalizedCategory(item.category);
+    const title = String(item.title || '');
+    if (/임신|출산|육아|보육|아동|한부모|부모급여/.test(title)) return 'family';
+    const categoryTopics = {'주거·자립':'housing','고용·창업':'work','보육·교육':'learn','임신·출산':'family','보건·의료':'care','보호·돌봄':'care','문화·환경':'culture'};
+    return categoryTopics[category] || 'work';
+}
+function renderLifePhoto(item) {
+    const topic = lifePhotoTopic(item);
+    const photo = lifePhotos[topic];
+    const image = byId('benefitDetailPhoto');
+    image.closest('.detail-photo').hidden = false;
+    image.closest('.detail-photo').classList.remove('photo-unavailable');
+    image.src = `/assets/photos/${topic}-cover.webp`;
+    image.srcset = `/assets/photos/${topic}-thumb.webp 400w, /assets/photos/${topic}-cover.webp 1320w`;
+    image.sizes = '(max-width: 760px) calc(100vw - 48px), 660px';
+    const credit = byId('benefitPhotoCredit');
+    credit.textContent = `${photo.author} / Unsplash`;
+    credit.href = `https://unsplash.com/photos/${photo.page}`;
+}
+
 function renderBenefitDetail(item, detail) {
     const merged = { ...item, ...detail, application:detail.application ?? applicationChannel(item) };
     state.activeDetail = merged;
+    renderLifePhoto(merged);
     byId('benefitDetailCategory').textContent = normalizedCategory(merged.category);
     byId('benefitDetailIcon').innerHTML = icon(categoryIcons[normalizedCategory(merged.category)] || 'leaf');
     byId('benefitDetailRegion').textContent = merged.region || '전국';

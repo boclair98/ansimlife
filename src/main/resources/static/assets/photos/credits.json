@@ -1,0 +1,68 @@
+[
+  {
+    "topic": "housing",
+    "photographer": "Kevin Lieder",
+    "source": "https://unsplash.com/photos/5T_XETRABHs",
+    "license": "https://unsplash.com/license",
+    "use": "주제별 참고 사진. 공고 제공기관·수혜자의 실제 사진이 아님.",
+    "files": [
+      "housing-cover.webp",
+      "housing-thumb.webp"
+    ]
+  },
+  {
+    "topic": "work",
+    "photographer": "JESHOOTS.COM",
+    "source": "https://unsplash.com/photos/pUAM5hPaCRI",
+    "license": "https://unsplash.com/license",
+    "use": "주제별 참고 사진. 공고 제공기관·수혜자의 실제 사진이 아님.",
+    "files": [
+      "work-cover.webp",
+      "work-thumb.webp"
+    ]
+  },
+  {
+    "topic": "family",
+    "photographer": "Luise and Nic",
+    "source": "https://unsplash.com/photos/9BMvbnkwVZ0",
+    "license": "https://unsplash.com/license",
+    "use": "주제별 참고 사진. 공고 제공기관·수혜자의 실제 사진이 아님.",
+    "files": [
+      "family-cover.webp",
+      "family-thumb.webp"
+    ]
+  },
+  {
+    "topic": "learn",
+    "photographer": "Kelly Sikkema",
+    "source": "https://unsplash.com/photos/hBdaqrr5Z3k",
+    "license": "https://unsplash.com/license",
+    "use": "주제별 참고 사진. 공고 제공기관·수혜자의 실제 사진이 아님.",
+    "files": [
+      "learn-cover.webp",
+      "learn-thumb.webp"
+    ]
+  },
+  {
+    "topic": "care",
+    "photographer": "Ries Bosch",
+    "source": "https://unsplash.com/photos/7Ym9PFIPYT4",
+    "license": "https://unsplash.com/license",
+    "use": "주제별 참고 사진. 공고 제공기관·수혜자의 실제 사진이 아님.",
+    "files": [
+      "care-cover.webp",
+      "care-thumb.webp"
+    ]
+  },
+  {
+    "topic": "culture",
+    "photographer": "Keiteu Ko",
+    "source": "https://unsplash.com/photos/O__TF8SIfZM",
+    "license": "https://unsplash.com/license",
+    "use": "주제별 참고 사진. 공고 제공기관·수혜자의 실제 사진이 아님.",
+    "files": [
+      "culture-cover.webp",
+      "culture-thumb.webp"
+    ]
+  }
+]
