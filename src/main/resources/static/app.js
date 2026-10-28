@@ -364,7 +364,7 @@ function renderPrograms(items) {
     byId('resultSubcopy').textContent = state.diagnosis
         ? '선택한 조건과 비교한 후보예요. 최종 기준은 공식 공고에서 확인해요.'
         : state.quickFilter === 'urgent' ? '마감이 가까운 혜택부터 확인해보세요.'
-        : '공식 정보를 바탕으로, 필요한 내용부터 한눈에.';
+        : '지원 내용과 대상을 읽고, 내 생활에 맞는 도움을 찾아보세요.';
     syncQuickFilterButtons();
     const grid = byId('programList');
     if (!items.length) {
@@ -386,19 +386,16 @@ function programCard(item) {
     const deadline = deadlineMeta(item);
     const saved = state.savedIds.has(item.id);
     const compared = state.comparisonIds.has(item.id);
-    const remainingDays = deadline.label.match(/(\d+)일 남음/);
-    const badgeLabel = remainingDays ? (Number(remainingDays[1]) === 0 ? '오늘' : `D-${remainingDays[1]}`)
-        : deadline.expired ? '종료' : /상시/.test(deadline.label) ? '상시' : '확인';
     const draft = state.drafts.find(value => value.programId === item.id);
     const progress = draft ? `<div class="card-progress"><span><i style="width:${draft.completionPercent}%"></i></span><b>${escapeHtml(journeyLabels[draft.journeyStatus] || '준비 중')}</b></div>` : '';
     const reason = state.diagnosis && item.audienceStatus === 'MATCHED'
         ? `<p class="audience-reason">${escapeHtml(item.audienceReason || '선택한 조건이 지원대상에 포함돼 있어요.')}</p>` : '';
     return `<article class="benefit-card status-${deadline.status.toLowerCase()}" data-action="detail" data-id="${item.id}">
-        <div class="card-visual"><span class="card-thumbnail" aria-hidden="true">${icon(categoryIcons[category] || 'leaf')}</span></div>
         <div class="card-copy"><div class="card-meta"><span class="card-category">${escapeHtml(category)}</span><span aria-hidden="true">·</span><span class="card-location">${escapeHtml(item.region || '전국')}</span></div>
         <h3><button class="card-title-button" data-action="detail" data-id="${item.id}" type="button">${escapeHtml(item.title)}</button></h3>
         <p class="benefit-value">${escapeHtml(cardPreview(item.benefit || item.summary || '지원 내용은 공식 상세 안내에서 확인해주세요.', 110))}</p>${reason}${progress}</div>
-        <div class="card-actions"><span class="deadline-chip ${deadline.status.toLowerCase()}" title="${escapeHtml(deadline.label)}" aria-label="${escapeHtml(deadline.label)}">${escapeHtml(badgeLabel)}</span><details class="card-menu"><summary data-action="menu" data-id="${item.id}" aria-label="${escapeHtml(item.title)} 더보기"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></summary><div class="card-menu-panel"><button class="save-button ${saved ? 'active' : ''}" data-action="save" data-id="${item.id}" type="button" aria-pressed="${saved}" aria-label="${escapeHtml(item.title)} ${saved ? '저장 해제' : '저장'}">${icon('bookmark')}${saved ? '저장 해제' : '저장하기'}</button><button class="compare-button ${compared ? 'active' : ''}" data-action="compare" data-id="${item.id}" type="button" aria-pressed="${compared}" aria-label="${escapeHtml(item.title)} ${compared ? '비교에서 빼기' : '비교에 담기'}">${icon(compared ? 'check' : 'compare')}${compared ? '비교에서 빼기' : '비교에 담기'}</button></div></details></div>
+        <span class="card-open-arrow" aria-hidden="true">${icon('chevron')}</span>
+        <div class="card-actions"><span class="deadline-chip ${deadline.status.toLowerCase()}" title="${escapeHtml(deadline.label)}" aria-label="${escapeHtml(deadline.label)}">${escapeHtml(deadline.label)}</span><div class="card-inline-actions"><button class="save-button ${saved ? 'active' : ''}" data-action="save" data-id="${item.id}" type="button" aria-pressed="${saved}" aria-label="${escapeHtml(item.title)} ${saved ? '저장 해제' : '저장'}">${icon('bookmark')}<span>${saved ? '저장됨' : '저장'}</span></button><button class="compare-button ${compared ? 'active' : ''}" data-action="compare" data-id="${item.id}" type="button" aria-pressed="${compared}" aria-label="${escapeHtml(item.title)} ${compared ? '비교에서 빼기' : '비교에 담기'}">${icon(compared ? 'check' : 'compare')}<span>비교</span></button></div></div>
     </article>`;
 }
 
@@ -421,7 +418,7 @@ function renderComparison() {
     byId('compareShare').disabled = !items.length;
     byId('compareClear').disabled = !state.comparisonIds.size;
     if (!items.length) {
-        table.innerHTML = '<div class="compare-empty"><span>＋</span><h3>비교할 혜택을 담아보세요</h3><p>혜택 목록의 더보기에서 ‘비교에 담기’를 누르면 지원대상과 신청방식을 한 화면에서 비교할 수 있어요.</p></div>';
+        table.innerHTML = '<div class="compare-empty"><span>＋</span><h3>비교할 혜택을 담아보세요</h3><p>혜택 목록에서 ‘비교’를 누르면 지원대상과 신청방식을 한 화면에서 비교할 수 있어요.</p></div>';
         return;
     }
     const rows = [
@@ -493,7 +490,7 @@ function toggleComparison(id) {
     if (byId('compareDialog').open) renderComparison();
     if(previousFocus?.matches('[data-action="compare"]') && !previousFocus.isConnected) {
         const list = byId(document.body.dataset.view === 'saved' ? 'savedList' : 'programList');
-        list.querySelector('[data-action="menu"][data-id="'+id+'"]')?.focus({preventScroll:true});
+        list.querySelector('button[data-action="compare"][data-id="'+id+'"]')?.focus({preventScroll:true});
     }
 }
 
@@ -579,7 +576,7 @@ function toggleSaved(id) {
     if (state.activeDetail?.id === id) syncDetailSaveButton();
     if(previousFocus?.matches('[data-action="save"]') && !previousFocus.isConnected) {
         const list = byId(document.body.dataset.view === 'saved' ? 'savedList' : 'programList');
-        const replacement = list.querySelector('[data-action="menu"][data-id="'+id+'"]');
+        const replacement = list.querySelector('button[data-action="save"][data-id="'+id+'"]');
         (replacement || (document.body.dataset.view === 'saved' ? byId('savedSection').querySelector('h1') : null))?.focus({preventScroll:true});
     }
 }
@@ -812,6 +809,7 @@ function renderBenefitDetail(item, detail) {
     syncDetailSaveButton();
     byId('benefitDetailLoading').hidden = true;
     byId('benefitDetailContent').hidden = false;
+    byId('benefitDetailPrepare').disabled = false;
 }
 
 function syncDetailSaveButton() {
@@ -832,6 +830,7 @@ async function openBenefitDetail(item) {
     byId('benefitDetailTitle').textContent = item.title;
     byId('benefitDetailLoading').hidden = false;
     byId('benefitDetailContent').hidden = true;
+    byId('benefitDetailPrepare').disabled = true;
     openDialog(byId('benefitDetailDialog'));
     byId('benefitDetailScroll').scrollTop = 0;
     const detail = await fetchDetail(item);
