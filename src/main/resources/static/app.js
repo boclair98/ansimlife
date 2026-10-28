@@ -394,7 +394,7 @@ function programCard(item) {
         <div class="card-copy"><div class="card-meta"><span class="card-category">${escapeHtml(category)}</span><span aria-hidden="true">·</span><span class="card-location">${escapeHtml(item.region || '전국')}</span></div>
         <h3><button class="card-title-button" data-action="detail" data-id="${item.id}" type="button">${escapeHtml(item.title)}</button></h3>
         <p class="benefit-value">${escapeHtml(cardPreview(item.benefit || item.summary || '지원 내용은 공식 상세 안내에서 확인해주세요.', 110))}</p>${reason}${progress}</div>
-        <span class="card-open-arrow" aria-hidden="true">${icon('chevron')}</span>
+        <span class="benefit-thumb" aria-hidden="true"><img src="/assets/photos/${lifePhotoTopic(item)}-thumb.webp" width="400" height="300" alt="" loading="lazy" decoding="async"></span>
         <div class="card-actions"><span class="deadline-chip ${deadline.status.toLowerCase()}" title="${escapeHtml(deadline.label)}" aria-label="${escapeHtml(deadline.label)}">${escapeHtml(deadline.label)}</span><div class="card-inline-actions"><button class="save-button ${saved ? 'active' : ''}" data-action="save" data-id="${item.id}" type="button" aria-pressed="${saved}" aria-label="${escapeHtml(item.title)} ${saved ? '저장 해제' : '저장'}">${icon('bookmark')}<span>${saved ? '저장됨' : '저장'}</span></button><button class="compare-button ${compared ? 'active' : ''}" data-action="compare" data-id="${item.id}" type="button" aria-pressed="${compared}" aria-label="${escapeHtml(item.title)} ${compared ? '비교에서 빼기' : '비교에 담기'}">${icon(compared ? 'check' : 'compare')}<span>비교</span></button></div></div>
     </article>`;
 }
@@ -840,6 +840,12 @@ function renderBenefitDetail(item, detail) {
     syncDetailSaveButton();
     byId('benefitDetailLoading').hidden = true;
     byId('benefitDetailContent').hidden = false;
+    const sectionButtons = [...document.querySelectorAll('[data-detail-jump]')];
+    sectionButtons.forEach(button => {
+        const section = byId(button.dataset.detailJump)?.closest('section');
+        button.hidden = !section || section.hidden;
+    });
+    byId('benefitDetailNav').hidden = sectionButtons.every(button => button.hidden);
     byId('benefitDetailPrepare').disabled = false;
 }
 

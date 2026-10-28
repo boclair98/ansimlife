@@ -123,13 +123,13 @@
             const due = core.dueMeta(draft);
             const progress = Math.max(0, Math.min(100, Number(draft.completionPercent) || 0));
             const canExport = core.calendarDrafts([draft]).length > 0;
-            return `<article class="application-card">
+            return `<article class="application-card journey-${core.draftGroup(draft)}">
                 <header><span class="journey-status ${status.tone}">${status.verified ? '✓ ' : ''}${escapeHtml(status.label)}</span><small>${escapeHtml(formatDateTime(draft.updatedAt))} 업데이트</small></header>
                 <h3>${escapeHtml(draft.programTitle)}</h3>
                 <p class="application-due ${due.tone}">${icon('clock')} ${escapeHtml(due.label)}</p>
                 ${draft.userReceiptMemo ? `<p class="receipt-memo">내 메모 · ${escapeHtml(draft.userReceiptMemo)}</p>` : ''}
                 ${draft.externalReceiptNumber ? `<p class="verified-receipt">기관 접수번호 <strong>${escapeHtml(draft.externalReceiptNumber)}</strong></p>` : ''}
-                <div class="application-progress"><span role="progressbar" aria-label="준비 확인" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><i style="width:${progress}%"></i></span><b>${progress}% 확인</b></div>
+                <div class="application-progress"><span role="progressbar" aria-label="준비 확인" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><i style="width:${progress}%"></i></span><b>${progress}% 준비 확인</b></div>
                 <footer><div class="application-secondary-actions">${canExport ? `<button class="text-button" data-calendar-id="${draft.id}" type="button">일정 받기</button>` : ''}${draft.status !== 'SUBMITTED' ? `<button class="text-button" data-draft-action="delete" data-id="${draft.id}" type="button" aria-label="${escapeHtml(draft.programTitle)} 준비 기록 삭제">삭제</button>` : ''}</div><button class="primary-button" data-draft-action="resume" data-program-id="${draft.programId}" type="button">${core.draftGroup(draft) === 'preparing' ? '이어서 준비' : '기록 확인'}</button></footer>
             </article>`;
         }).join('');

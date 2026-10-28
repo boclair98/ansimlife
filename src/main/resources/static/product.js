@@ -3,12 +3,23 @@
     const core = window.AnsimWorkflow;
     const topicDescriptions = {housing:'집을 구하고, 이사할 때',work:'새로운 일을 시작할 때',family:'가족을 맞이하고 키울 때',learn:'배우고 성장하고 싶을 때',care:'건강한 일상을 지킬 때',culture:'쉬어 가는 시간이 필요할 때'};
     document.addEventListener('error', event => {
-        if (event.target instanceof HTMLImageElement && event.target.closest('.home-cover,.detail-photo,.topic-photo')) {
-            const frame = event.target.closest('.home-cover,.detail-photo,.topic-photo');
+        if (event.target instanceof HTMLImageElement && event.target.closest('.home-cover,.detail-photo,.topic-photo,.benefit-thumb')) {
+            const frame = event.target.closest('.home-cover,.detail-photo,.topic-photo,.benefit-thumb');
             frame.classList.add('photo-unavailable');
             if (frame.classList.contains('detail-photo')) frame.hidden = true;
         }
     }, true);
+    byId('benefitDetailNav').addEventListener('click', event => {
+        const button = event.target.closest('[data-detail-jump]');
+        if (!button) return;
+        const section = byId(button.dataset.detailJump)?.closest('section');
+        if (!section || section.hidden) return;
+        const heading = section.querySelector('h2');
+        if (!heading) return;
+        heading.tabIndex = -1;
+        heading.scrollIntoView({block:'start', behavior:preferredScrollBehavior()});
+        heading.focus({preventScroll:true});
+    });
     let activeGuideId = null;
     let guideDownloadController = null;
 

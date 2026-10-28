@@ -1,5 +1,36 @@
 # OpenUI Design Plan
 
+## 2026-10-28 목록·상세·저장·준비 통합 디자인 — 현재 범위
+
+### 목적·문제·첫 행동
+홈 사진 디자인을 혜택을 고르고 읽고 준비하는 실제 화면으로 연결한다. 사용자 요청은 메인 이외 전체 주요 화면의 같은 느낌과 모바일 편의다. 현재 programCard는 사진 없는 긴 구분선 목록, savedSection은 제목과 단순 목록, applicationSummary는 모바일에서 긴 3행, application-card는 평평한 행이다. 상세는 큰 사진부터 시작해 제목과 핵심 조건을 늦게 보여주며 긴 본문에 바로가기 기능이 없다. API 내용·기능은 보존한다.
+최우선 행동은 목록에서 상세 열기, 저장에서 다시 읽기, 준비에서 이어서 준비하기다. CTA는 기존 card-title-button/data-action=detail, data-draft-action=resume, benefitDetailPrepare 핸들러를 유지한다.
+
+### Resolved inputs
+Topic: 생활 혜택을 찾고 준비하는 안심생활. Offer: 공식 공고 목록·상세·저장·비교·준비 기록. Audience: 남녀노소 모바일·PC 이용자. Primary user action: 혜택 상세 확인 후 필요한 준비 이어가기. Deliverable: 기존 vanilla HTML/CSS/JS의 4개 주요 화면과 준비 3단계. Style direction: 홈의 자연광 사진·흰색·파란 조작색을 연결한 편집형 서비스 UI. Tonal key: Light. Icon policy: 기존 SVG. Proof assets: 실제 공고·계정별 기록만, 기존 라이선스 확인 사진은 장식. Motion intensity: Minimal; reduced-motion 유지.
+
+### Composition contract
+Hero archetype: 하위 화면은 작업 중심의 compact editorial header. First-viewport structure: 제목/설명 + 작은 분야 사진 → 관련 조작 → 결과/기록. Primary visual: 라이선스 기록된 분야별 사진; 데이터는 공식 공고. Interaction behavior: 검색·필터·저장·비교·정렬·준비 계속하기 보존; 상세 본문 바로가기 추가(존재하는 항목만 표시, 키보드 포커스 이동). Reuse boundary: 목록과 저장은 같은 카드, 준비는 실제 진행·다음 확인일·기록 카드, 상세는 가독성 중심 기사. 메인 히어로 구성은 유지한다.
+
+### 시각 규칙
+Pretendard Variable 유지. 제목32/1.4/700 모바일28/1.4, 목록20/1.5/650 모바일18/1.55, 본문16~17/1.7, 메타14/1.5. 텍스트#191f28/#333d4b, 보조#6b7684, 주요#0064ff, 배경#fff, 보조면#f5f7fa, 경계#e5e8eb. 반경 카드20/모바일16, 버튼12. 간격8/12/16/20/24/32/48. 목록·저장·준비 카드의 외곽선과 내부 여백을 통일한다. 좁은 모바일은 썸네일72px, 본문 minmax(0,1fr); 제목 전체 표시, 설명은 미리보기이며 상세에 전체 표시. 카드 하단 기한과 저장/비교는 별도 행으로 분리한다.
+저장·준비 본문 폭840px(거터24px 포함), 상세720px(본문660px). 모바일 거터20px, 카드 내부20px. 준비 요약은 3열의 간결한 숫자/라벨, 3개 모두 최소44px 조작 영역. 상태와 의미는 색만으로 구별하지 않는다. 큰 글자에서 자동 줄바꿈을 허용한다.
+
+### 화면별 구성
+- 목록/저장: 분야·지역 → 전체 제목 → 지원 내용 → 기한 및 저장/비교. 오른쪽 사진은 분야 맥락을 전달하고 alt는 빈 값. 제목·기한·지원 내용은 삭제하지 않는다.
+- 저장: 생활 사진을 둔 작은 페이지 소개와 검색/정렬, 동일 카드, 빈 목록은 기존 명확한 다음 행동.
+- 상세: 분야·지역·제목·설명·저장/공식/PDF → 분야 사진 → 신청 기간/기관 요약 → 지원대상·지원내용·신청방법·서류 바로가기 → 본문. 고정 하단 신청 준비 CTA 유지. 바로가기는 표시된 제목으로 스크롤하고 포커스를 옮긴다. 숨겨진/없는 항목은 링크를 만들지 않는다.
+- 준비: 작은 사진의 페이지 소개, 오늘/이번 주/보완 요약, 필터/검색, 카드 안 상태·제목·다음 확인·준비 진행률·이어서 준비. 일정 내보내기는 설명과 다운로드 버튼을 포함한 details로 묶고 검색·정렬은 한 줄로 배치해 기록을 먼저 읽도록 한다. 3단계 준비 화면의 단계 표시·체크리스트·폼·하단 CTA도 같은 면·반경·간격으로 맞춘다.
+
+### 자산·계약·검증
+새 외부 의존성 없음. 기존 assets/photos의 thumb/cover 및 출처 재사용. 장식 사진은 공고 증거가 아니며 상세 출처 표기 유지. app.js(카드/사진 분류/상세 바로가기 상태), product.js(바로가기 이벤트), workspace.js(준비 카드 클래스), index.html, product.css, README.md 수정. 모든 데이터 API, 로그인, 저장 키, 준비 기록, 공식 제출 아님 안내 유지.
+JS 문법과 기존 9개 테스트, Maven 테스트/패키지. 360×800·390×844·768×1024·1440×900 목록/상세/저장/준비 및3단계 검증. 큰 글자, 제목 전체 줄바꿈, 이미지, 직접 저장/비교·키보드 복귀·상세 바로가기·준비 재개·필터/정렬·빈 상태 확인. 기존 지속된 배포 요청 범위에서 canonical → 실제 fork 동기화 → Coders ready → 운영 검증.
+
+### Filled implementation prompt / output target
+Create one coherent editorial product experience for 안심생활 공공혜택 목록·상세·저장·신청 준비. Preserve the existing Spring Boot static frontend, official API records and handlers. Use the current curated lifestyle photography, self-hosted Pretendard, white surface and accessible blue actions. Build readable benefit cards with small topic images, compact saved/preparation introductions, authentic progress records and an article with working section navigation. Do not invent proof, eligibility or submission. Mobile first: 20px gutters, 44px minimum targets, safe Korean wrapping and visible focus. Preserve loading, error, empty and success behavior. Output into src/main/resources/static/index.html, product.css, app.js, product.js and workspace.js. The full OpenUI master prompt below remains applicable to the unchanged home; this section governs the task screens.
+
+---
+
 ## 2026-10-28 사진 중심 서비스 디자인 — 현재 구현 범위
 
 ### 서비스와 실제 문제
